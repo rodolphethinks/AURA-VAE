@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AURA-VAE</string>
+    <string name="app_title">AURA-VAE</string>
+    <string name="app_subtitle">Acoustic Anomaly Detection</string>
+    
+    <!-- Buttons -->
+    <string name="btn_start_recording">🎤 Start Recording</string>
+    <string name="btn_stop_analyze">⏹ Stop &amp; Analyze</string>
+    
+    <!-- Status -->
+    <string name="status_idle">Ready to record</string>
+    <string name="status_recording">Recording audio…</string>
+    <string name="status_stopped">Recording stopped</string>
+    
+    <!-- Analysis -->
+    <string name="analysis_idle">Waiting for audio</string>
+    <string name="analysis_processing">Analyzing audio…</string>
+    <string name="analysis_complete">Analysis complete</string>
+    
+    <!-- Results -->
+    <string name="result_label">DETECTION RESULT</string>
+    <string name="result_normal">NORMAL</string>
+    <string name="result_anomaly">ANOMALY</string>
+    
+    <!-- Scores -->
+    <string name="score_default">Score: --</string>
+    <string name="score_format">Score: %.4f (Threshold: %.4f)</string>
+    <string name="duration_default">Duration: 00:00</string>
+    <string name="duration_format">Duration: %02d:%02d</string>
+    <string name="segments_default">Segments analyzed: 0</string>
+    <string name="segments_format">Segments analyzed: %d</string>
+    
+    <!-- Loading -->
+    <string name="loading_analyzing">Analyzing audio…</string>
+    <string name="loading_model">Loading model…</string>
+    
+    <!-- Errors -->
+    <string name="error_permission">Microphone permission required</string>
+    <string name="error_recording">Recording failed</string>
+    <string name="error_model">Model loading failed</string>
+    <string name="error_analysis">Analysis failed</string>
+</resources>

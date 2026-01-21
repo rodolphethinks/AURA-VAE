@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme colors for in-car display -->
+    <color name="background_dark">#121212</color>
+    <color name="card_background">#1E1E1E</color>
+    <color name="divider">#333333</color>
+    
+    <!-- Text colors -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B0B0B0</color>
+    
+    <!-- Button colors -->
+    <color name="button_start">#4CAF50</color>
+    <color name="button_stop">#F44336</color>
+    <color name="button_disabled">#666666</color>
+    
+    <!-- Status colors -->
+    <color name="status_inactive">#666666</color>
+    <color name="status_recording">#F44336</color>
+    <color name="status_processing">#FFC107</color>
+    <color name="status_success">#4CAF50</color>
+    
+    <!-- Result colors -->
+    <color name="result_normal">#4CAF50</color>
+    <color name="result_anomaly">#F44336</color>
+    
+    <!-- Accent -->
+    <color name="accent">#2196F3</color>
+    <color name="confidence_bar">#2196F3</color>
+    
+    <!-- Theme colors -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

@@ -1,0 +1,52 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.eggs/
+*.egg-info/
+*.egg
+
+# Data files (too large for git)
+data/processed/*.npy
+data/raw/
+data/synthetic/
+*.m4a
+*.wav
+*.mp3
+
+# Model weights (large files)
+models/*.h5
+models/*.tflite
+
+# Keep config JSONs
+!models/*.json
+
+# Android build artifacts
+android/AuraVAE/app/build/
+android/AuraVAE/build/
+android/AuraVAE/.gradle/
+android/AuraVAE/local.properties
+*.apk
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TensorBoard logs
+results/logs/
+
+# Inference results (regeneratable)
+results/inference/
+
+# Keep plots and metrics
+!results/plots/
+!results/metrics/

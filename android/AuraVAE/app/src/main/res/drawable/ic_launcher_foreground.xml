@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Sound wave icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30 L54,78 M42,36 L42,72 M66,36 L66,72 M30,42 L30,66 M78,42 L78,66"
+        android:strokeWidth="6"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"/>
+</vector>
