@@ -68,7 +68,7 @@ SPEC_TOP_DB = 80.0  # Maximum dynamic range
 INPUT_SHAPE = (N_MELS, N_TIME_FRAMES, 1)
 
 # Latent space dimension
-LATENT_DIM = 16  # Compact latent representation
+LATENT_DIM = 32  # Compact latent representation
 
 # Encoder architecture (filters for each conv layer)
 ENCODER_FILTERS = [32, 64, 128]
@@ -76,10 +76,10 @@ ENCODER_KERNELS = [(3, 3), (3, 3), (3, 3)]
 ENCODER_STRIDES = [(2, 2), (2, 2), (2, 2)]
 
 # Dense layer after conv layers
-ENCODER_DENSE = 128
+ENCODER_DENSE = 256
 
 # Decoder mirrors encoder
-DECODER_DENSE = 128
+DECODER_DENSE = 256
 DECODER_FILTERS = [128, 64, 32]
 DECODER_KERNELS = [(3, 3), (3, 3), (3, 3)]
 DECODER_STRIDES = [(2, 2), (2, 2), (2, 2)]

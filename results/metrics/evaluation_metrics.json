@@ -1,31 +1,31 @@
 {
-  "threshold": 0.06539658457040787,
+  "threshold": 0.0558185875415802,
   "threshold_method": "mean + 3.0*std",
   "normal_scores": {
-    "mean": 0.037535615265369415,
-    "std": 0.023059330880641937,
-    "min": 0.017518192529678345,
-    "max": 0.3526460528373718
+    "mean": 0.03119957260787487,
+    "std": 0.008867012336850166,
+    "min": 0.019555822014808655,
+    "max": 0.10571620613336563
   },
   "anomaly_scores": {
-    "mean": 1986.044189453125,
-    "std": 24355.439453125,
-    "min": 0.23524117469787598,
-    "max": 341079.34375
+    "mean": 0.7754642963409424,
+    "std": 0.6321263313293457,
+    "min": 0.11191470175981522,
+    "max": 4.494815826416016
   },
   "detection": {
-    "normal_accuracy": 92.97872340425532,
+    "normal_accuracy": 96.91489361702128,
     "anomaly_detection_rate": 100.0,
-    "false_positive_rate": 7.0212765957446805,
+    "false_positive_rate": 3.085106382978722,
     "false_negative_rate": 0.0
   },
   "roc": {
-    "auc": 0.9997872340425532,
-    "optimal_threshold": 0.23524117469787598,
+    "auc": 1.0,
+    "optimal_threshold": 0.11191470175981522,
     "optimal_tpr": 1.0,
-    "optimal_fpr": 0.0010638297872340426
+    "optimal_fpr": 0.0
   },
   "precision_recall": {
-    "pr_auc": 0.9988904915234568
+    "pr_auc": 1.0
   }
 }

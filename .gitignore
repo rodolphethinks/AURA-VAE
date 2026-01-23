@@ -50,3 +50,5 @@ results/inference/
 # Keep plots and metrics
 !results/plots/
 !results/metrics/
+
+first-audio-results/

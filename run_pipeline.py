@@ -1,57 +1,545 @@
 """
-AURA-VAE Full Pipeline Runner
+AURA-VAE Iterative Training Pipeline
 
-Runs the complete pipeline:
-1. Preprocessing
-2. Training
-3. Evaluation
-4. TFLite conversion
+Supports the iterative workflow:
+1. Evaluate new recordings with latest model
+2. Clean audio (remove non-vehicle anomalies)
+3. Add cleaned audio to training set
+4. Retrain/test/eval with combined dataset
+5. Convert to TFLite and deploy
 
 Usage:
-    python run_pipeline.py [--skip-train] [--epochs N]
+    # Full pipeline with all audio files
+    python run_pipeline.py
+    
+    # Evaluate a new recording
+    python run_pipeline.py --evaluate "path/to/new_recording.m4a"
+    
+    # Add a cleaned audio file to training set
+    python run_pipeline.py --add-audio "path/to/cleaned_audio.wav"
+    
+    # Retrain only (skip preprocessing if features exist)
+    python run_pipeline.py --retrain
+    
+    # Skip specific steps
+    python run_pipeline.py --skip-train --skip-eval
 """
 
 import argparse
 import sys
 import os
+import json
+import numpy as np
+from datetime import datetime
 
 # Add python directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'python'))
 
 
+# =============================================================================
+# AUDIO REGISTRY - Add your cleaned audio files here
+# =============================================================================
+TRAINING_AUDIO_FILES = [
+    # Original training audio
+    "Filante Sound Acquisition.m4a",
+    # Cleaned audio from second recording (anomalies removed)
+    "Filante Sound Acquisition 2_cleaned.wav",
+    # Cleaned audio from third recording
+    "Filante Sound Acquisition 3_cleaned.wav",
+    # Add more cleaned audio files here as you collect them:
+    # "Filante Sound Acquisition 4_cleaned.wav",
+]
+
+
+def get_audio_files(base_dir):
+    """Get list of existing audio files from registry."""
+    existing = []
+    missing = []
+    for audio_file in TRAINING_AUDIO_FILES:
+        path = os.path.join(base_dir, audio_file)
+        if os.path.exists(path):
+            existing.append(path)
+        else:
+            missing.append(audio_file)
+    return existing, missing
+
+
+def preprocess_combined_audio(audio_files, output_dir):
+    """Preprocess and combine multiple audio files."""
+    import librosa
+    from config import (SAMPLE_RATE, SEGMENT_SAMPLES, HOP_SAMPLES, 
+                        N_FFT, HOP_LENGTH, N_MELS, F_MIN, F_MAX, N_TIME_FRAMES)
+    
+    print(f"\nProcessing {len(audio_files)} audio files...")
+    
+    all_audio = []
+    total_duration = 0
+    
+    for i, audio_path in enumerate(audio_files):
+        print(f"\n  [{i+1}/{len(audio_files)}] Loading: {os.path.basename(audio_path)}")
+        audio, _ = librosa.load(audio_path, sr=SAMPLE_RATE, mono=True)
+        duration = len(audio) / SAMPLE_RATE
+        print(f"       Duration: {duration:.1f}s ({duration/60:.1f} min)")
+        all_audio.append(audio)
+        total_duration += duration
+    
+    # Combine all audio
+    combined = np.concatenate(all_audio)
+    print(f"\n  Combined duration: {total_duration:.1f}s ({total_duration/60:.1f} min)")
+    
+    # Segment into windows
+    print("\n  Segmenting audio...")
+    segments = []
+    for start in range(0, len(combined) - SEGMENT_SAMPLES + 1, HOP_SAMPLES):
+        segment = combined[start:start + SEGMENT_SAMPLES]
+        segments.append(segment)
+    
+    segments = np.array(segments)
+    print(f"  Total segments: {len(segments)}")
+    
+    # Extract mel spectrograms
+    print("\n  Extracting mel spectrograms...")
+    features = []
+    for i, seg in enumerate(segments):
+        mel_spec = librosa.feature.melspectrogram(
+            y=seg, sr=SAMPLE_RATE, n_fft=N_FFT, hop_length=HOP_LENGTH,
+            n_mels=N_MELS, fmin=F_MIN, fmax=F_MAX
+        )
+        mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
+        
+        # Ensure correct shape
+        if mel_spec_db.shape[1] > N_TIME_FRAMES:
+            mel_spec_db = mel_spec_db[:, :N_TIME_FRAMES]
+        elif mel_spec_db.shape[1] < N_TIME_FRAMES:
+            pad = N_TIME_FRAMES - mel_spec_db.shape[1]
+            mel_spec_db = np.pad(mel_spec_db, ((0, 0), (0, pad)), mode='constant')
+        
+        features.append(mel_spec_db)
+        
+        if (i + 1) % 1000 == 0:
+            print(f"    Processed {i+1}/{len(segments)}...")
+    
+    features = np.array(features)
+    print(f"  Features shape: {features.shape}")
+    
+    # Save
+    os.makedirs(output_dir, exist_ok=True)
+    np.save(os.path.join(output_dir, "combined_segments.npy"), segments)
+    np.save(os.path.join(output_dir, "combined_features.npy"), features)
+    
+    # Save metadata
+    metadata = {
+        "timestamp": datetime.now().isoformat(),
+        "audio_files": [os.path.basename(f) for f in audio_files],
+        "total_duration_seconds": total_duration,
+        "num_segments": len(segments),
+        "feature_shape": list(features.shape)
+    }
+    with open(os.path.join(output_dir, "preprocessing_metadata.json"), "w") as f:
+        json.dump(metadata, f, indent=2)
+    
+    return features, segments
+
+
+def train_vae_combined(features_path, models_dir):
+    """Train VAE on combined features."""
+    import tensorflow as tf
+    from tensorflow import keras
+    from config import INPUT_SHAPE, LATENT_DIM, LEARNING_RATE, MODEL_FILENAME
+    from model import VAE
+    
+    print("\nLoading features...")
+    features = np.load(features_path)
+    print(f"Features shape: {features.shape}")
+    
+    # Normalize
+    mean_val = float(features.mean())
+    std_val = float(features.std())
+    features_norm = (features - mean_val) / std_val
+    print(f"Normalization: mean={mean_val:.4f}, std={std_val:.4f}")
+    
+    # Add channel dimension
+    features_norm = features_norm[..., np.newaxis]
+    
+    # Train/val split
+    np.random.seed(42)
+    indices = np.random.permutation(len(features_norm))
+    split_idx = int(len(indices) * 0.85)
+    train_idx = indices[:split_idx]
+    val_idx = indices[split_idx:]
+    
+    X_train = features_norm[train_idx]
+    X_val = features_norm[val_idx]
+    print(f"Train: {len(X_train)}, Val: {len(X_val)}")
+    
+    # Build model
+    print("\nBuilding VAE model...")
+    vae = VAE(INPUT_SHAPE, LATENT_DIM)
+    vae.compile(optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE))
+    
+    # Callbacks
+    callbacks = [
+        keras.callbacks.EarlyStopping(
+            monitor='val_total_loss', patience=15, 
+            restore_best_weights=True, mode='min'
+        ),
+        keras.callbacks.ReduceLROnPlateau(
+            monitor='val_total_loss', factor=0.5, 
+            patience=5, min_lr=1e-6, mode='min'
+        ),
+    ]
+    
+    # Train
+    print("\nTraining...")
+    history = vae.fit(
+        X_train, X_train,
+        validation_data=(X_val, X_val),
+        epochs=100,
+        batch_size=32,
+        callbacks=callbacks,
+        verbose=1
+    )
+    
+    # Force build state for correct saving
+    _ = vae(X_train[:1])
+
+    # Save model - use encoder weights since VAE is custom
+    os.makedirs(models_dir, exist_ok=True)
+    
+    # Save using older Keras format that works with custom models
+    weights_path = os.path.join(models_dir, MODEL_FILENAME)
+    try:
+        vae.save_weights(weights_path)
+        print(f"\nSaved weights: {weights_path}")
+    except Exception as e:
+        print(f"\nWarning: Could not save weights in new format ({e})")
+        # Save encoder and decoder separately
+        encoder_path = os.path.join(models_dir, "encoder_weights.weights.h5")
+        decoder_path = os.path.join(models_dir, "decoder_weights.weights.h5")
+        vae.encoder.save_weights(encoder_path)
+        vae.decoder.save_weights(decoder_path)
+        print(f"Saved encoder weights: {encoder_path}")
+        print(f"Saved decoder weights: {decoder_path}")
+    
+    # Save normalization params
+    norm_params = {"mean": mean_val, "std": std_val, "fitted": True}
+    norm_path = os.path.join(models_dir, "normalization_params.json")
+    with open(norm_path, "w") as f:
+        json.dump(norm_params, f, indent=2)
+    print(f"Saved normalization: {norm_path}")
+    
+    # Calculate threshold
+    print("\nCalculating threshold...")
+    reconstructions = vae.predict(features_norm, verbose=0)
+    mse = np.mean(np.square(features_norm - reconstructions), axis=(1, 2, 3))
+    threshold = float(np.mean(mse) + 3 * np.std(mse))
+    
+    threshold_config = {
+        "threshold": threshold,
+        "mean_mse": float(np.mean(mse)),
+        "std_mse": float(np.std(mse)),
+        "method": "mean_plus_3std"
+    }
+    threshold_path = os.path.join(models_dir, "threshold_config.json")
+    with open(threshold_path, "w") as f:
+        json.dump(threshold_config, f, indent=2)
+    print(f"Saved threshold: {threshold_path}")
+    print(f"  Threshold: {threshold:.6f}")
+    
+    return vae, history, norm_params, threshold_config
+
+
+def evaluate_new_recording(audio_path, models_dir, output_dir):
+    """Evaluate a new recording and show top anomalies."""
+    from inference import run_inference
+    
+    print(f"\nEvaluating: {audio_path}")
+    results = run_inference(audio_path, output_dir)
+    
+    # Show top anomalies for review
+    print("\n" + "="*60)
+    print("TOP 10 ANOMALY REGIONS FOR REVIEW")
+    print("="*60)
+    
+    segments = results['segment_results']
+    threshold = results['threshold']
+    
+    # Group consecutive anomalies
+    anomaly_segments = [(i, s) for i, s in enumerate(segments) if s['is_anomaly']]
+    
+    if not anomaly_segments:
+        print("\n✓ No anomalies detected!")
+        return results
+    
+    regions = []
+    current_start = anomaly_segments[0][1]['start_time']
+    current_end = anomaly_segments[0][1]['end_time']
+    max_score = anomaly_segments[0][1]['anomaly_score']
+    
+    for i, seg in anomaly_segments[1:]:
+        if seg['start_time'] <= current_end + 0.5:
+            current_end = seg['end_time']
+            max_score = max(max_score, seg['anomaly_score'])
+        else:
+            regions.append((current_start, current_end, max_score))
+            current_start = seg['start_time']
+            current_end = seg['end_time']
+            max_score = seg['anomaly_score']
+    
+    regions.append((current_start, current_end, max_score))
+    
+    # Sort by score
+    regions_sorted = sorted(regions, key=lambda x: x[2], reverse=True)
+    
+    print("\nRank   Time (MM:SS)           Duration    Max Score")
+    print("-"*60)
+    
+    for i, (start, end, score) in enumerate(regions_sorted[:10]):
+        start_mm = int(start // 60)
+        start_ss = start % 60
+        end_mm = int(end // 60)
+        end_ss = end % 60
+        duration = end - start
+        print(f"{i+1:<6} {start_mm:02d}:{start_ss:04.1f} - {end_mm:02d}:{end_ss:04.1f}     {duration:.1f}s        {score:.4f}")
+    
+    print("\n" + "="*60)
+    print("NEXT STEPS:")
+    print("="*60)
+    print("1. Listen to each region in the audio file")
+    print("2. Identify which are real anomalies (paper, talking, etc.)")
+    print("3. Create cleaned audio by removing those regions")
+    print("4. Add cleaned audio to TRAINING_AUDIO_FILES in run_pipeline.py")
+    print("5. Run: python run_pipeline.py --retrain")
+    
+    # Interactive Review
+    interactive_anomaly_review(audio_path, regions_sorted)
+    
+    return results
+
+
+def interactive_anomaly_review(audio_path, regions_sorted):
+    """
+    Interactive review of anomalies with playback and removal.
+    """
+    import soundfile as sf
+    import librosa
+    import numpy as np
+    try:
+        import winsound
+    except ImportError:
+        print("\nWinsound not available (Windows only). Skipping interactive playback.")
+        return
+
+    print("\n" + "="*60)
+    print("INTERACTIVE ANOMALY REVIEW")
+    print("="*60)
+    
+    confirm = input("Start interactive review of top 10 anomalies? [y/N]: ").strip().lower()
+    if confirm != 'y':
+        return
+
+    # Load audio once
+    print(f"\nLoading audio for playback: {os.path.basename(audio_path)}...")
+    try:
+        # Load with native SR for playback
+        y, sr = librosa.load(audio_path, sr=None, mono=True)
+    except Exception as e:
+        print(f"Error loading audio: {e}")
+        return
+    
+    # Store regions to remove (start, end)
+    to_remove = []
+    
+    # Only review top 10
+    total_anomalies = min(10, len(regions_sorted))
+    
+    for i, (start, end, score) in enumerate(regions_sorted[:total_anomalies]):
+        # Convert to samples
+        start_sample = int(start * sr)
+        end_sample = int(end * sr)
+        
+        # Add 0.5s padding for context
+        pad = int(0.5 * sr)
+        play_start = max(0, start_sample - pad)
+        play_end = min(len(y), end_sample + pad)
+        
+        snippet = y[play_start:play_end]
+        
+        print(f"\nAnomaly {i+1}/{total_anomalies}: {int(start//60):02d}:{start%60:04.1f} - {int(end//60):02d}:{end%60:04.1f} (Score: {score:.4f})")
+        
+        while True:
+            print("  Playing clip... ", end="", flush=True)
+            # Save temp wav for winsound
+            temp_wav = "temp_review.wav"
+            try:
+                sf.write(temp_wav, snippet, sr)
+                winsound.PlaySound(temp_wav, winsound.SND_FILENAME)
+                print("Done.")
+            except Exception as e:
+                print(f"Playback error: {e}")
+                break
+            
+            choice = input("  Is this an anomaly to REMOVE? [y=Yes / n=No / r=Replay]: ").strip().lower()
+            if choice == 'r':
+                continue
+            elif choice == 'y':
+                to_remove.append((start, end))
+                print("  MARKED FOR REMOVAL.")
+                break
+            elif choice == 'n':
+                print("  Kept as normal.")
+                break
+            else:
+                print("  Invalid choice. n assumed.")
+                break
+                
+    # Cleanup temp
+    if os.path.exists("temp_review.wav"):
+        try:
+            os.remove("temp_review.wav")
+        except:
+            pass
+        
+    if not to_remove:
+        print("\nNo regions marked for removal.")
+        return
+        
+    print(f"\nMarked {len(to_remove)} regions for removal. Generating cleaned audio...")
+    
+    # Sort removal regions descending by start time to avoid index shift issues?
+    # No, we will make a boolean mask.
+    mask = np.ones(len(y), dtype=bool)
+    for start, end in to_remove:
+        s = int(start * sr)
+        e = int(end * sr)
+        mask[s:e] = False
+    
+    y_cleaned = y[mask]
+    
+    # Filename
+    filename = os.path.basename(audio_path)
+    name, ext = os.path.splitext(filename)
+    if "_cleaned" in name:
+        # Avoid _cleaned_cleaned
+        clean_name = f"{name}.wav"
+    else:
+        clean_name = f"{name}_cleaned.wav"
+        
+    output_path = os.path.join(os.path.dirname(audio_path), clean_name)
+    
+    sf.write(output_path, y_cleaned, sr)
+    print(f"✓ Saved cleaned audio: {output_path}")
+    print(f"  Removed {len(y) - len(y_cleaned)} samples ({(len(y) - len(y_cleaned))/sr:.1f}s)")
+    
+    # Auto-add to registry
+    add_confirm = input(f"\nAdd '{clean_name}' to training list in run_pipeline.py? [y/N]: ").strip().lower()
+    if add_confirm == 'y':
+        try:
+            with open(__file__, 'r') as f:
+                lines = f.readlines()
+            
+            # Find TRAINING_AUDIO_FILES list
+            start_idx = -1
+            end_idx = -1
+            for idx, line in enumerate(lines):
+                if 'TRAINING_AUDIO_FILES = [' in line:
+                    start_idx = idx
+                if start_idx != -1 and ']' in line:
+                    end_idx = idx
+                    break
+            
+            if start_idx != -1 and end_idx != -1:
+                # Check if already exists
+                entry = f'    "{clean_name}",\n'
+                already_exists = False
+                for line in lines[start_idx:end_idx+1]:
+                    if clean_name in line:
+                        already_exists = True
+                        break
+                
+                if not already_exists:
+                    # Insert before the closing bracket
+                    lines.insert(end_idx, entry)
+                    with open(__file__, 'w') as f:
+                        f.writelines(lines)
+                    print(f"✓ Added to TRAINING_AUDIO_FILES.")
+                else:
+                    print("! Already in list.")
+            else:
+                print("! Could not find TRAINING_AUDIO_FILES list in script.")
+        except Exception as e:
+            print(f"! Error updating script: {e}")
+
+
 def main():
-    parser = argparse.ArgumentParser(description='AURA-VAE Full Pipeline')
-    parser.add_argument('--skip-preprocess', action='store_true', 
+    parser = argparse.ArgumentParser(description='AURA-VAE Iterative Training Pipeline')
+    parser.add_argument('--evaluate', type=str, metavar='AUDIO_PATH',
+                        help='Evaluate a new recording with the current model')
+    parser.add_argument('--add-audio', type=str, metavar='AUDIO_PATH',
+                        help='Add a cleaned audio file path to display (manual edit needed)')
+    parser.add_argument('--retrain', action='store_true',
+                        help='Retrain using existing combined features')
+    parser.add_argument('--skip-preprocess', action='store_true',
                         help='Skip preprocessing (use existing features)')
     parser.add_argument('--skip-train', action='store_true',
                         help='Skip training (use existing model)')
     parser.add_argument('--skip-eval', action='store_true',
                         help='Skip evaluation')
+    parser.add_argument('--skip-convert', action='store_true',
+                        help='Skip TFLite conversion')
     parser.add_argument('--epochs', type=int, default=None,
                         help='Override number of training epochs')
     args = parser.parse_args()
     
+    from config import BASE_DIR, PROCESSED_DATA_DIR, MODELS_DIR, RESULTS_DIR
+    
     print("="*60)
-    print("AURA-VAE Full Pipeline")
+    print("AURA-VAE Iterative Training Pipeline")
     print("="*60)
     
+    # Mode: Evaluate new recording
+    if args.evaluate:
+        output_dir = os.path.join(RESULTS_DIR, "inference")
+        evaluate_new_recording(args.evaluate, MODELS_DIR, output_dir)
+        return
+    
+    # Mode: Show how to add audio
+    if args.add_audio:
+        print(f"\nTo add '{args.add_audio}' to training:")
+        print(f"\n1. Edit run_pipeline.py")
+        print(f"2. Add to TRAINING_AUDIO_FILES list:")
+        print(f'   "{os.path.basename(args.add_audio)}",')
+        print(f"\n3. Run: python run_pipeline.py")
+        return
+    
+    # Get audio files
+    audio_files, missing = get_audio_files(BASE_DIR)
+    
+    print(f"\nTraining audio files ({len(audio_files)} found):")
+    for f in audio_files:
+        print(f"  ✓ {os.path.basename(f)}")
+    if missing:
+        print(f"\nMissing files ({len(missing)}):")
+        for f in missing:
+            print(f"  ✗ {f}")
+    
+    if not audio_files:
+        print("\nERROR: No audio files found!")
+        return
+    
     # Step 1: Preprocessing
-    if not args.skip_preprocess:
+    features_path = os.path.join(PROCESSED_DATA_DIR, "combined_features.npy")
+    
+    if not args.skip_preprocess and not args.retrain:
         print("\n" + "="*60)
         print("STEP 1: PREPROCESSING")
         print("="*60)
-        from preprocessing import preprocess_source_audio, generate_synthetic_anomalies
-        from config import PROCESSED_DATA_DIR
-        import numpy as np
-        
-        features = preprocess_source_audio()
-        anomalies = generate_synthetic_anomalies(n_samples=200)
-        
-        anomalies_path = os.path.join(PROCESSED_DATA_DIR, "synthetic_anomalies.npy")
-        np.save(anomalies_path, anomalies)
-        print(f"Saved synthetic anomalies to: {anomalies_path}")
+        features, segments = preprocess_combined_audio(audio_files, PROCESSED_DATA_DIR)
+    elif os.path.exists(features_path):
+        print("\n[Using existing preprocessed features]")
     else:
-        print("\n[Skipping preprocessing]")
+        print("\nERROR: No features found. Run without --skip-preprocess")
+        return
     
     # Step 2: Training
     if not args.skip_train:
@@ -59,14 +547,14 @@ def main():
         print("STEP 2: TRAINING")
         print("="*60)
         
-        # Override epochs if specified
         if args.epochs:
             import config
             config.EPOCHS = args.epochs
             print(f"Overriding epochs to: {args.epochs}")
         
-        from train import train_vae
-        vae, history, normalizer = train_vae()
+        vae, history, norm_params, threshold_config = train_vae_combined(
+            features_path, MODELS_DIR
+        )
     else:
         print("\n[Skipping training]")
     
@@ -81,27 +569,39 @@ def main():
         print("\n[Skipping evaluation]")
     
     # Step 4: TFLite Conversion
-    print("\n" + "="*60)
-    print("STEP 4: TFLITE CONVERSION")
-    print("="*60)
-    from convert_tflite import convert_vae_to_tflite
-    convert_vae_to_tflite()
+    if not args.skip_convert:
+        print("\n" + "="*60)
+        print("STEP 4: TFLITE CONVERSION")
+        print("="*60)
+        from convert_tflite import convert_vae_to_tflite
+        convert_vae_to_tflite()
+    else:
+        print("\n[Skipping TFLite conversion]")
     
     # Final Summary
     print("\n" + "="*60)
     print("PIPELINE COMPLETE!")
     print("="*60)
     
-    from config import MODELS_DIR, BASE_DIR
-    print(f"\nGenerated artifacts in: {MODELS_DIR}")
-    print("\nNext steps:")
-    print("1. Copy TFLite models to Android assets:")
-    print(f"   - {os.path.join(MODELS_DIR, 'vae_model.tflite')}")
-    print(f"   - {os.path.join(MODELS_DIR, 'anomaly_detector.tflite')}")
-    print(f"   - {os.path.join(MODELS_DIR, 'android_config.json')}")
-    print(f"\n   To: {os.path.join(BASE_DIR, 'android', 'AuraVAE', 'app', 'src', 'main', 'assets')}")
-    print("\n2. Open Android project in Android Studio")
-    print("3. Build and deploy to device")
+    print(f"\nTraining data: {len(audio_files)} audio files")
+    print(f"Models saved to: {MODELS_DIR}")
+    
+    print("\n" + "-"*60)
+    print("ITERATIVE WORKFLOW:")
+    print("-"*60)
+    print("1. Record new audio in vehicle")
+    print("2. Evaluate: python run_pipeline.py --evaluate 'new_recording.m4a'")
+    print("3. Review top anomalies, identify non-vehicle sounds")
+    print("4. Create cleaned audio (remove paper, talking, etc.)")
+    print("5. Add cleaned file to TRAINING_AUDIO_FILES in this script")
+    print("6. Retrain: python run_pipeline.py")
+    print("7. Deploy new model to Android")
+    
+    # Copy instructions
+    android_assets = os.path.join(BASE_DIR, 'android', 'AuraVAE', 'app', 'src', 'main', 'assets')
+    print(f"\nTo deploy to Android:")
+    print(f"  copy models\\anomaly_detector.tflite {android_assets}")
+    print(f"  copy models\\*.json {android_assets}")
 
 
 if __name__ == "__main__":
