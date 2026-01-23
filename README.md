@@ -92,40 +92,34 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### 2. Preprocess Audio Data
+### 2. Run Pipeline (Train, Evaluate, Convert)
+
+To run the full pipeline (preprocessing, training, evaluation, conversion):
+
+```bash
+python run_pipeline.py --retrain
+```
+
+Or for individual steps:
 
 ```bash
 python python/preprocessing.py
-```
-
-### 3. Train the VAE Model
-
-```bash
 python python/train.py
-```
-
-### 4. Evaluate the Model
-
-```bash
 python python/evaluate.py
-```
-
-### 5. Convert to TFLite
-
-```bash
 python python/convert_tflite.py
 ```
 
-### 6. Build Android App
+### 3. Build Android App
 
-1. Open `android/AuraVAE` in Android Studio
-2. Build and run on Android 11 device
+1. Models are automatically copied to `android/AuraVAE/app/src/main/assets`
+2. Open `android/AuraVAE` in Android Studio
+3. Build and run on Android 11 device
 
 ## Model Specifications
 
 - **Input Shape**: (64, 32, 1) - 64 mel bins × 32 time frames
-- **Latent Dimension**: 16
-- **Model Size**: < 1 MB (TFLite)
+- **Latent Dimension**: 32
+- **Model Size**: ~2.5 MB (TFLite)
 - **Inference Time**: < 50ms per segment
 
 ## Anomaly Detection Logic
