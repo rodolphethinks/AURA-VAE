@@ -253,11 +253,29 @@ def plot_reconstruction_examples(model: VAE,
     print(f"Reconstruction examples saved to: {save_path}")
 
 
-def evaluate_model():
+def evaluate_model(vae=None, norm_params=None, features_path=None, segments_path=None, output_dir=None):
     """
     Main evaluation function.
+    
+    Args:
+        vae: Trained VAE model (optional, loads from disk if None)
+        norm_params: Normalization parameters dict (optional)
+        features_path: Path to features file (not used by AuraDataset currently but good for future)
+        segments_path: Path to segments file (not used by AuraDataset currently)
+        output_dir: Directory to save plots/metrics (optional, uses default if None)
     """
-    create_directories()
+    if output_dir:
+        plots_dir = os.path.join(output_dir, "plots")
+        metrics_dir = os.path.join(output_dir, "metrics")
+        models_dir = os.path.join(output_dir, "models")
+    else:
+        plots_dir = PLOTS_DIR
+        metrics_dir = METRICS_DIR
+        models_dir = MODELS_DIR
+        
+    os.makedirs(plots_dir, exist_ok=True)
+    os.makedirs(metrics_dir, exist_ok=True)
+    os.makedirs(models_dir, exist_ok=True)
     
     print("\n" + "="*60)
     print("AURA-VAE Model Evaluation")
@@ -268,7 +286,19 @@ def evaluate_model():
     # =========================================================================
     print("\n[1/5] Loading model and data...")
     
-    vae, normalizer = load_trained_model()
+    if vae is None:
+        vae, normalizer = load_trained_model()
+    else:
+        # Reconstruct normalizer
+        normalizer = FeatureNormalizer()
+        if norm_params:
+            normalizer.mean = norm_params['mean']
+            normalizer.std = norm_params['std']
+            normalizer.fitted = True
+        else:
+             # Try loading default params
+             _, normalizer_loaded = load_trained_model() # Inefficient but safe fallback
+             normalizer = normalizer_loaded
     
     # Load data
     dataset = AuraDataset(normalizer=normalizer)
@@ -348,25 +378,25 @@ def evaluate_model():
     # Score distribution plot
     plot_score_distribution(
         normal_scores, anomaly_scores, threshold,
-        os.path.join(PLOTS_DIR, "score_distribution.png")
+        os.path.join(plots_dir, "score_distribution.png")
     )
     
     # ROC curve
     roc_metrics = plot_roc_curve(
         y_true, y_scores,
-        os.path.join(PLOTS_DIR, "roc_curve.png")
+        os.path.join(plots_dir, "roc_curve.png")
     )
     
     # Precision-Recall curve
     pr_metrics = plot_precision_recall(
         y_true, y_scores,
-        os.path.join(PLOTS_DIR, "precision_recall.png")
+        os.path.join(plots_dir, "precision_recall.png")
     )
     
     # Reconstruction examples
     plot_reconstruction_examples(
         vae, test_data, anomaly_data,
-        os.path.join(PLOTS_DIR, "reconstruction_examples.png")
+        os.path.join(plots_dir, "reconstruction_examples.png")
     )
     
     # Save metrics
@@ -395,7 +425,7 @@ def evaluate_model():
         'precision_recall': pr_metrics
     }
     
-    metrics_path = os.path.join(METRICS_DIR, "evaluation_metrics.json")
+    metrics_path = os.path.join(metrics_dir, "evaluation_metrics.json")
     with open(metrics_path, 'w') as f:
         json.dump(metrics, f, indent=2)
     print(f"\nMetrics saved to: {metrics_path}")
@@ -407,10 +437,11 @@ def evaluate_model():
         'std': float(train_scores.std()),
         'k': ANOMALY_THRESHOLD_K
     }
-    threshold_path = os.path.join(MODELS_DIR, "threshold_config.json")
+    threshold_path = os.path.join(models_dir, "threshold_config.json")
     with open(threshold_path, 'w') as f:
         json.dump(threshold_config, f, indent=2)
     print(f"Threshold config saved to: {threshold_path}")
+
     
     # =========================================================================
     # Summary

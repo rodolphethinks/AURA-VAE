@@ -187,123 +187,8 @@ def preprocess_combined_audio(audio_files, output_dir):
     return features, segments
 
 
-def train_vae_combined(features_path, output_dir=None):
-    """Train VAE on combined features."""
-    import tensorflow as tf
-    from tensorflow import keras
-    from config import INPUT_SHAPE, LATENT_DIM, LEARNING_RATE, MODEL_FILENAME
-    from model import VAE
-    
-    # Determine output directories
-    if output_dir:
-        models_dir = os.path.join(output_dir, "models")
-        plots_dir = os.path.join(output_dir, "plots")
-    else:
-        models_dir = "models"
-        plots_dir = "results/plots"
-        
-    os.makedirs(models_dir, exist_ok=True)
-    os.makedirs(plots_dir, exist_ok=True)
-    
-    print("\nLoading features...")
-    features = np.load(features_path)
-    print(f"Features shape: {features.shape}")
-    
-    # Normalize
-    mean_val = float(features.mean())
-    std_val = float(features.std())
-    features_norm = (features - mean_val) / std_val
-    print(f"Normalization: mean={mean_val:.4f}, std={std_val:.4f}")
-    
-    # Add channel dimension
-    features_norm = features_norm[..., np.newaxis]
-    
-    # Train/val split
-    np.random.seed(42)
-    indices = np.random.permutation(len(features_norm))
-    split_idx = int(len(indices) * 0.85)
-    train_idx = indices[:split_idx]
-    val_idx = indices[split_idx:]
-    
-    X_train = features_norm[train_idx]
-    X_val = features_norm[val_idx]
-    print(f"Train: {len(X_train)}, Val: {len(X_val)}")
-    
-    # Build model
-    print("\nBuilding VAE model...")
-    vae = VAE(INPUT_SHAPE, LATENT_DIM)
-    vae.compile(optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE))
-    
-    # Callbacks
-    callbacks = [
-        keras.callbacks.EarlyStopping(
-            monitor='val_total_loss', patience=15, 
-            restore_best_weights=True, mode='min'
-        ),
-        keras.callbacks.ReduceLROnPlateau(
-            monitor='val_total_loss', factor=0.5, 
-            patience=5, min_lr=1e-6, mode='min'
-        ),
-    ]
-    
-    # Train
-    print("\nTraining...")
-    history = vae.fit(
-        X_train, X_train,
-        validation_data=(X_val, X_val),
-        epochs=100,
-        batch_size=32,
-        callbacks=callbacks,
-        verbose=1
-    )
-    
-    # Force build state for correct saving
-    _ = vae(X_train[:1])
+# [Function removed - using python.train.train_vae instead]
 
-    # Save model - use encoder weights since VAE is custom
-    os.makedirs(models_dir, exist_ok=True)
-    
-    # Save using older Keras format that works with custom models
-    weights_path = os.path.join(models_dir, MODEL_FILENAME)
-    try:
-        vae.save_weights(weights_path)
-        print(f"\nSaved weights: {weights_path}")
-    except Exception as e:
-        print(f"\nWarning: Could not save weights in new format ({e})")
-        # Save encoder and decoder separately
-        encoder_path = os.path.join(models_dir, "encoder_weights.weights.h5")
-        decoder_path = os.path.join(models_dir, "decoder_weights.weights.h5")
-        vae.encoder.save_weights(encoder_path)
-        vae.decoder.save_weights(decoder_path)
-        print(f"Saved encoder weights: {encoder_path}")
-        print(f"Saved decoder weights: {decoder_path}")
-    
-    # Save normalization params
-    norm_params = {"mean": mean_val, "std": std_val, "fitted": True}
-    norm_path = os.path.join(models_dir, "normalization_params.json")
-    with open(norm_path, "w") as f:
-        json.dump(norm_params, f, indent=2)
-    print(f"Saved normalization: {norm_path}")
-    
-    # Calculate threshold
-    print("\nCalculating threshold...")
-    reconstructions = vae.predict(features_norm, verbose=0)
-    mse = np.mean(np.square(features_norm - reconstructions), axis=(1, 2, 3))
-    threshold = float(np.mean(mse) + 3 * np.std(mse))
-    
-    threshold_config = {
-        "threshold": threshold,
-        "mean_mse": float(np.mean(mse)),
-        "std_mse": float(np.std(mse)),
-        "method": "mean_plus_3std"
-    }
-    threshold_path = os.path.join(models_dir, "threshold_config.json")
-    with open(threshold_path, "w") as f:
-        json.dump(threshold_config, f, indent=2)
-    print(f"Saved threshold: {threshold_path}")
-    print(f"  Threshold: {threshold:.6f}")
-    
-    return vae, history, norm_params, threshold_config
 
 
 def evaluate_new_recording(audio_path, output_dir=None):
@@ -555,10 +440,7 @@ def main():
                         help='Override number of training epochs')
     args = parser.parse_args()
     
-    from config import BASE_DIR, PROCESSED_DATA_DIR
-    
-    # Define production output dirs as fallback constants, though we mainly use exp dirs now
-    MODELS_DIR = "models"
+    from config import BASE_DIR, PROCESSED_DATA_DIR, RAW_DATA_DIR
     
     print("="*60)
     print("AURA-VAE Iterative Training Pipeline")
@@ -596,8 +478,8 @@ def main():
          # If just preprocessing not creating full experiment unless needed
          exp_dir = get_experiment_dir(tag="preprocess")
 
-    # Get audio files
-    audio_files, missing = get_audio_files(BASE_DIR)
+    # Get audio files (Look in RAW_DATA_DIR)
+    audio_files, missing = get_audio_files(RAW_DATA_DIR)
     
     print(f"\nTraining audio files ({len(audio_files)} found):")
     for f in audio_files:
@@ -633,7 +515,9 @@ def main():
         # Copy to experiment dir for reproducibility
         import shutil
         shutil.copy2(features_path_cache, features_path_exp)
-        shutil.copy2(os.path.join(PROCESSED_DATA_DIR, "combined_segments.npy"), segments_path_exp)
+        segments_path_cache = os.path.join(PROCESSED_DATA_DIR, "combined_segments.npy")
+        if os.path.exists(segments_path_cache):
+             shutil.copy2(segments_path_cache, segments_path_exp)
     else:
         print("\nERROR: No features found. Run without --skip-preprocess")
         return
@@ -644,8 +528,16 @@ def main():
         print("STEP 2: TRAINING")
         print("="*60)
         
+        if args.epochs:
+            import config
+            config.EPOCHS = args.epochs
+            print(f"Overriding epochs to: {args.epochs}")
+
+        from train import train_vae
         # Pass exp_dir to save models there
-        vae, history, norm_params, threshold_config = train_vae_combined(features_path_exp, output_dir=exp_dir)
+        vae, history, normalizer = train_vae(output_dir=exp_dir)
+        
+        norm_params = {'mean': normalizer.mean, 'std': normalizer.std}
         
         # Step 3: Evaluation
         if not args.skip_eval:
@@ -654,67 +546,28 @@ def main():
             print("="*60)
             from evaluate import evaluate_model
             # Save metrics/plots to exp_dir
-            evaluate_model(vae, features_path_exp, segments_path_exp, output_dir=exp_dir)
+            evaluate_model(vae, norm_params=norm_params, features_path=features_path_exp, segments_path=segments_path_exp, output_dir=exp_dir)
             
         # Step 4: Convert
         if not args.skip_convert:
             print("\n" + "="*60)
             print("STEP 4: TFLITE CONVERSION")
             print("="*60)
-            from convert_tflite import convert_and_save
+            from convert_tflite import convert_vae_to_tflite
             # Save tflite to exp_dir/models
-            convert_and_save(vae, norm_params, output_dir=os.path.join(exp_dir, "models"))
+            convert_vae_to_tflite(vae, norm_params, output_dir=exp_dir)
             
             # Step 5: Update Production
             update_production_models(exp_dir)
             
-        print("\n" + "="*60)
-        print("PIPELINE COMPLETE")
-        print("="*60)
-        print(f"All results saved to: {exp_dir}")
-        print("Production models updated in: models/")
-        print("\n" + "="*60)
-        print("STEP 2: TRAINING")
-        print("="*60)
-        
-        if args.epochs:
-            import config
-            config.EPOCHS = args.epochs
-            print(f"Overriding epochs to: {args.epochs}")
-        
-        vae, history, norm_params, threshold_config = train_vae_combined(
-            features_path, MODELS_DIR
-        )
     else:
         print("\n[Skipping training]")
     
-    # Step 3: Evaluation
-    if not args.skip_eval:
-        print("\n" + "="*60)
-        print("STEP 3: EVALUATION")
-        print("="*60)
-        from evaluate import evaluate_model
-        metrics = evaluate_model()
-    else:
-        print("\n[Skipping evaluation]")
-    
-    # Step 4: TFLite Conversion
-    if not args.skip_convert:
-        print("\n" + "="*60)
-        print("STEP 4: TFLITE CONVERSION")
-        print("="*60)
-        from convert_tflite import convert_vae_to_tflite
-        convert_vae_to_tflite()
-    else:
-        print("\n[Skipping TFLite conversion]")
-    
-    # Final Summary
     print("\n" + "="*60)
-    print("PIPELINE COMPLETE!")
+    print("PIPELINE COMPLETE")
     print("="*60)
-    
-    print(f"\nTraining data: {len(audio_files)} audio files")
-    print(f"Models saved to: {MODELS_DIR}")
+    print(f"Results saved to: {exp_dir}")
+    print("Production models updated in: models/")
     
     print("\n" + "-"*60)
     print("ITERATIVE WORKFLOW:")

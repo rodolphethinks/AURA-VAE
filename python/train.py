@@ -130,10 +130,13 @@ def plot_training_history(history: dict, save_path: str):
     print(f"Training history plot saved to: {save_path}")
 
 
-def train_vae():
+def train_vae(output_dir=None):
     """
     Main training function.
     
+    Args:
+        output_dir: Directory to save model/metrics (optional)
+
     Pipeline:
     1. Create directories
     2. Load and prepare data
@@ -141,7 +144,19 @@ def train_vae():
     4. Train
     5. Save model and artifacts
     """
-    create_directories()
+    # Determine output directories
+    if output_dir:
+        models_dir = os.path.join(output_dir, "models")
+        plots_dir = os.path.join(output_dir, "plots")
+        logs_root_dir = os.path.join(output_dir, "logs")
+    else:
+        models_dir = MODELS_DIR
+        plots_dir = PLOTS_DIR
+        logs_root_dir = os.path.join(RESULTS_DIR, "logs")
+        
+    os.makedirs(models_dir, exist_ok=True)
+    os.makedirs(plots_dir, exist_ok=True)
+    os.makedirs(logs_root_dir, exist_ok=True)
     
     print("\n" + "="*60)
     print("AURA-VAE Training Pipeline")
@@ -157,13 +172,15 @@ def train_vae():
     dataset = AuraDataset(normalizer=normalizer)
     
     # Load features
+    # Note: dataset.load_features uses default PROCESSED_DATA_DIR.
+    # If run_pipeline copied features there, this works fine.
     normal_features, anomaly_features = dataset.load_features()
     
     # Prepare data
     train_data, test_data = dataset.prepare_data(normal_features, anomaly_features)
     
     # Save normalization parameters
-    norm_path = os.path.join(MODELS_DIR, NORM_PARAMS_FILENAME)
+    norm_path = os.path.join(models_dir, NORM_PARAMS_FILENAME)
     normalizer.save(norm_path)
     
     # Create TensorFlow datasets
@@ -192,10 +209,10 @@ def train_vae():
     print("\n[3/5] Setting up training...")
     
     # Model save path
-    weights_path = os.path.join(MODELS_DIR, "vae_weights.weights.h5")
+    weights_path = os.path.join(models_dir, "vae_weights.weights.h5")
     
     # TensorBoard log directory
-    log_dir = os.path.join(RESULTS_DIR, "logs", datetime.now().strftime("%Y%m%d-%H%M%S"))
+    log_dir = os.path.join(logs_root_dir, datetime.now().strftime("%Y%m%d-%H%M%S"))
     
     # Callbacks
     callbacks = setup_callbacks(weights_path, log_dir)
@@ -230,19 +247,19 @@ def train_vae():
     vae.load_weights(weights_path)
     
     # Save full model (for TFLite conversion)
-    model_path = os.path.join(MODELS_DIR, MODEL_FILENAME)
+    model_path = os.path.join(models_dir, MODEL_FILENAME)
     vae.save_weights(model_path)
     print(f"  Model weights saved to: {model_path}")
     
     # Save training history
     history_dict = {k: [float(v) for v in vals] for k, vals in history.history.items()}
-    history_path = os.path.join(MODELS_DIR, TRAINING_HISTORY_FILENAME)
+    history_path = os.path.join(models_dir, TRAINING_HISTORY_FILENAME)
     with open(history_path, 'w') as f:
         json.dump(history_dict, f, indent=2)
     print(f"  Training history saved to: {history_path}")
     
     # Plot training history
-    plot_path = os.path.join(PLOTS_DIR, "training_history.png")
+    plot_path = os.path.join(plots_dir, "training_history.png")
     plot_training_history(history_dict, plot_path)
     
     # =========================================================================

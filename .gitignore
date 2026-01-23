@@ -11,12 +11,16 @@ __pycache__/
 *.egg
 
 # Data files (too large for git)
-data/processed/*.npy
+*.npy
 data/raw/
 data/synthetic/
 *.m4a
 *.wav
 *.mp3
+
+# New Experiment artifacts to ignore likely large or redundant
+experiments/**/combined_features.npy
+experiments/**/combined_segments.npy
 
 # Model weights (large files)
 models/*.h5
@@ -42,13 +46,7 @@ android/AuraVAE/local.properties
 Thumbs.db
 
 # TensorBoard logs
-results/logs/
-
-# Inference results (regeneratable)
-results/inference/
-
-# Keep plots and metrics
-!results/plots/
-!results/metrics/
+**/logs/
+**/*.tfevents*
 
 first-audio-results/

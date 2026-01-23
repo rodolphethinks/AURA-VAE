@@ -24,7 +24,7 @@ PLOTS_DIR = os.path.join(RESULTS_DIR, "plots")
 METRICS_DIR = os.path.join(RESULTS_DIR, "metrics")
 
 # Source audio file
-SOURCE_AUDIO_FILE = os.path.join(BASE_DIR, "Filante Sound Acquisition.m4a")
+SOURCE_AUDIO_FILE = os.path.join(RAW_DATA_DIR, "Filante Sound Acquisition.m4a")
 
 # =============================================================================
 # AUDIO PREPROCESSING PARAMETERS

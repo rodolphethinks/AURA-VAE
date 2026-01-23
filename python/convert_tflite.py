@@ -179,11 +179,22 @@ def verify_tflite_model(tflite_path: str, test_input: np.ndarray) -> bool:
     return True
 
 
-def convert_vae_to_tflite():
+def convert_vae_to_tflite(vae=None, norm_params=None, output_dir=None):
     """
     Main conversion function.
+    
+    Args:
+        vae: Trained VAE model (optional, loads from disk if None)
+        norm_params: Normalization parameters dict (optional)
+        output_dir: Output directory for TFLite models (optional)
     """
-    create_directories()
+    # Determine output directory
+    if output_dir:
+        models_dir = os.path.join(output_dir, "models")
+    else:
+        models_dir = MODELS_DIR
+        
+    os.makedirs(models_dir, exist_ok=True)
     
     print("\n" + "="*60)
     print("AURA-VAE TFLite Conversion")
@@ -194,10 +205,21 @@ def convert_vae_to_tflite():
     # =========================================================================
     print("\n[1/4] Loading trained model...")
     
-    vae = create_vae_model()
-    weights_path = os.path.join(MODELS_DIR, MODEL_FILENAME)
-    vae.load_weights(weights_path)
-    print(f"  Loaded weights from: {weights_path}")
+    if vae is None:
+        vae = create_vae_model()
+        # Try finding weights in output_dir first, then globally
+        weights_path = os.path.join(models_dir, MODEL_FILENAME)
+        if not os.path.exists(weights_path):
+             weights_path = os.path.join(MODELS_DIR, MODEL_FILENAME)
+        
+        if os.path.exists(weights_path):
+             vae.load_weights(weights_path)
+             print(f"  Loaded weights from: {weights_path}")
+        else:
+             print(f"  Error: Could not find weights at {weights_path}")
+             return
+    else:
+        print("  Using provided in-memory model")
     
     # =========================================================================
     # 2. Create inference model
@@ -216,24 +238,42 @@ def convert_vae_to_tflite():
     print("\n[3/4] Loading representative data...")
     
     from preprocessing import FeatureNormalizer
-    from dataset import AuraDataset
     
     normalizer = FeatureNormalizer()
-    norm_path = os.path.join(MODELS_DIR, NORM_PARAMS_FILENAME)
-    if os.path.exists(norm_path):
-        normalizer.load(norm_path)
+    
+    if norm_params:
+        normalizer.mean = norm_params['mean']
+        normalizer.std = norm_params['std']
+        normalizer.fitted = True
+        print("  Using provided normalization parameters")
+    else:
+        # Load from disk
+        norm_path = os.path.join(models_dir, NORM_PARAMS_FILENAME)
+        if not os.path.exists(norm_path):
+             norm_path = os.path.join(MODELS_DIR, NORM_PARAMS_FILENAME)
+             
+        if os.path.exists(norm_path):
+            normalizer.load(norm_path)
+            print(f"  Loaded normalization params from: {norm_path}")
     
     # Try to load processed data
     try:
         from config import PROCESSED_DATA_DIR
-        features_path = os.path.join(PROCESSED_DATA_DIR, "normal_features.npy")
+        # Try output_dir if provided
+        features_path = None
+        if output_dir:
+             features_path = os.path.join(output_dir, "normal_features.npy")
+        
+        if not features_path or not os.path.exists(features_path):
+             features_path = os.path.join(PROCESSED_DATA_DIR, "normal_features.npy")
+        
         if os.path.exists(features_path):
             features = np.load(features_path)
             if len(features.shape) == 3:
                 features = np.expand_dims(features, axis=-1)
             if normalizer.fitted:
                 features = normalizer.transform(features)
-            print(f"  Loaded {len(features)} samples for calibration")
+            print(f"  Loaded {len(features)} samples for calibration from {features_path}")
         else:
             features = np.random.randn(100, *INPUT_SHAPE).astype(np.float32)
             print("  Using random data for calibration")
@@ -247,11 +287,11 @@ def convert_vae_to_tflite():
     print("\n[4/4] Converting to TFLite...")
     
     # Convert inference model (reconstruction output)
-    tflite_path = os.path.join(MODELS_DIR, TFLITE_FILENAME)
+    tflite_path = os.path.join(models_dir, TFLITE_FILENAME)
     convert_to_tflite(inference_model, tflite_path, quantize=False, representative_data=features)
     
     # Convert detector model (anomaly score output)
-    detector_path = os.path.join(MODELS_DIR, "anomaly_detector.tflite")
+    detector_path = os.path.join(models_dir, "anomaly_detector.tflite")
     convert_to_tflite(detector_model, detector_path, quantize=False, representative_data=features)
     
     # Verify models
@@ -286,13 +326,13 @@ def convert_vae_to_tflite():
         }
     
     # Add threshold config if available
-    threshold_path = os.path.join(MODELS_DIR, "threshold_config.json")
+    threshold_path = os.path.join(models_dir, "threshold_config.json")
     if os.path.exists(threshold_path):
         with open(threshold_path, 'r') as f:
             threshold_config = json.load(f)
         android_config['threshold'] = threshold_config
     
-    config_path = os.path.join(MODELS_DIR, "android_config.json")
+    config_path = os.path.join(models_dir, "android_config.json")
     with open(config_path, 'w') as f:
         json.dump(android_config, f, indent=2)
     print(f"  Saved Android config: {config_path}")
