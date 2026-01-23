@@ -63,6 +63,52 @@ def get_audio_files(base_dir):
             missing.append(audio_file)
     return existing, missing
 
+# =============================================================================
+# HELPER FUNCTIONS - EXPERIMENT MANAGEMENT
+# =============================================================================
+def get_experiment_dir(tag="run"):
+    """Create a versioned directory for this execution."""
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    exp_name = f"{timestamp}_{tag}"
+    exp_dir = os.path.join(os.path.dirname(__file__), "experiments", exp_name)
+    os.makedirs(exp_dir, exist_ok=True)
+    
+    # Create subdirectories
+    os.makedirs(os.path.join(exp_dir, "models"), exist_ok=True)
+    os.makedirs(os.path.join(exp_dir, "plots"), exist_ok=True)
+    os.makedirs(os.path.join(exp_dir, "metrics"), exist_ok=True)
+    os.makedirs(os.path.join(exp_dir, "inference"), exist_ok=True)
+    
+    print(f"\n[EXPERIMENT] Created experiment directory: {exp_name}")
+    return exp_dir
+
+def update_production_models(exp_dir):
+    """Copy successful models from experiment dir to root models/ for Android deployment."""
+    prod_dir = os.path.join(os.path.dirname(__file__), "models")
+    os.makedirs(prod_dir, exist_ok=True)
+    
+    import shutil
+    
+    # Files to copy
+    files = [
+        ("models/vae_model.tflite", "vae_model.tflite"),
+        ("models/anomaly_detector.tflite", "anomaly_detector.tflite"),
+        ("models/android_config.json", "android_config.json"),
+        ("models/normalization_params.json", "normalization_params.json"),
+        ("models/threshold_config.json", "threshold_config.json"),
+        ("models/vae_model.weights.h5", "vae_model.weights.h5") 
+    ]
+    
+    print("\n[DEPLOY] Updating production models in /models/...")
+    for src_rel, dst_rel in files:
+        src = os.path.join(exp_dir, src_rel)
+        dst = os.path.join(prod_dir, dst_rel)
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+            print(f"  Updated: {dst_rel}")
+        else:
+            pass # Silent skip for missing files
+
 
 def preprocess_combined_audio(audio_files, output_dir):
     """Preprocess and combine multiple audio files."""
@@ -141,12 +187,23 @@ def preprocess_combined_audio(audio_files, output_dir):
     return features, segments
 
 
-def train_vae_combined(features_path, models_dir):
+def train_vae_combined(features_path, output_dir=None):
     """Train VAE on combined features."""
     import tensorflow as tf
     from tensorflow import keras
     from config import INPUT_SHAPE, LATENT_DIM, LEARNING_RATE, MODEL_FILENAME
     from model import VAE
+    
+    # Determine output directories
+    if output_dir:
+        models_dir = os.path.join(output_dir, "models")
+        plots_dir = os.path.join(output_dir, "plots")
+    else:
+        models_dir = "models"
+        plots_dir = "results/plots"
+        
+    os.makedirs(models_dir, exist_ok=True)
+    os.makedirs(plots_dir, exist_ok=True)
     
     print("\nLoading features...")
     features = np.load(features_path)
@@ -249,12 +306,19 @@ def train_vae_combined(features_path, models_dir):
     return vae, history, norm_params, threshold_config
 
 
-def evaluate_new_recording(audio_path, models_dir, output_dir):
+def evaluate_new_recording(audio_path, output_dir=None):
     """Evaluate a new recording and show top anomalies."""
     from inference import run_inference
+    import shutil
     
+    # Use provided output directory or default results/metrics
+    if output_dir:
+        inference_out_dir = os.path.join(output_dir, "inference")
+    else:
+        inference_out_dir = "results/inference"
+        
     print(f"\nEvaluating: {audio_path}")
-    results = run_inference(audio_path, output_dir)
+    results = run_inference(audio_path, inference_out_dir)
     
     # Show top anomalies for review
     print("\n" + "="*60)
@@ -491,7 +555,10 @@ def main():
                         help='Override number of training epochs')
     args = parser.parse_args()
     
-    from config import BASE_DIR, PROCESSED_DATA_DIR, MODELS_DIR, RESULTS_DIR
+    from config import BASE_DIR, PROCESSED_DATA_DIR
+    
+    # Define production output dirs as fallback constants, though we mainly use exp dirs now
+    MODELS_DIR = "models"
     
     print("="*60)
     print("AURA-VAE Iterative Training Pipeline")
@@ -499,8 +566,14 @@ def main():
     
     # Mode: Evaluate new recording
     if args.evaluate:
-        output_dir = os.path.join(RESULTS_DIR, "inference")
-        evaluate_new_recording(args.evaluate, MODELS_DIR, output_dir)
+        # Create experiment directory for inference
+        filename = os.path.basename(args.evaluate).split('.')[0]
+        # Sanitize filename
+        filename = "".join([c for c in filename if c.isalpha() or c.isdigit() or c==' ' or c=='_']).rstrip()
+        exp_dir = get_experiment_dir(tag=f"eval_{filename}")
+        
+        evaluate_new_recording(args.evaluate, output_dir=exp_dir)
+        print(f"\nResults saved to: {exp_dir}")
         return
     
     # Mode: Show how to add audio
@@ -512,6 +585,17 @@ def main():
         print(f"\n3. Run: python run_pipeline.py")
         return
     
+    # ==========================
+    # TRAINING PIPELINE START
+    # ==========================
+    
+    # Create experiment directory for this training run
+    if args.retrain or not args.skip_train:
+         exp_dir = get_experiment_dir(tag="train")
+    else:
+         # If just preprocessing not creating full experiment unless needed
+         exp_dir = get_experiment_dir(tag="preprocess")
+
     # Get audio files
     audio_files, missing = get_audio_files(BASE_DIR)
     
@@ -528,21 +612,67 @@ def main():
         return
     
     # Step 1: Preprocessing
-    features_path = os.path.join(PROCESSED_DATA_DIR, "combined_features.npy")
-    
+    # Note: We save combined features to PROCESSED_DATA_DIR (cache) AND exp_dir
+    features_path_cache = os.path.join(PROCESSED_DATA_DIR, "combined_features.npy")
+    features_path_exp = os.path.join(exp_dir, "combined_features.npy")
+    segments_path_exp = os.path.join(exp_dir, "combined_segments.npy")
+
     if not args.skip_preprocess and not args.retrain:
         print("\n" + "="*60)
         print("STEP 1: PREPROCESSING")
         print("="*60)
-        features, segments = preprocess_combined_audio(audio_files, PROCESSED_DATA_DIR)
-    elif os.path.exists(features_path):
-        print("\n[Using existing preprocessed features]")
+        # Preprocess saves to the output directory provided
+        features, segments = preprocess_combined_audio(audio_files, exp_dir)
+        # Verify it was saved there
+        if not os.path.exists(features_path_exp):
+             np.save(features_path_exp, features)
+             np.save(segments_path_exp, segments)
+             
+    elif os.path.exists(features_path_cache):
+        print("\n[Using existing preprocessed features from cache]")
+        # Copy to experiment dir for reproducibility
+        import shutil
+        shutil.copy2(features_path_cache, features_path_exp)
+        shutil.copy2(os.path.join(PROCESSED_DATA_DIR, "combined_segments.npy"), segments_path_exp)
     else:
         print("\nERROR: No features found. Run without --skip-preprocess")
         return
     
     # Step 2: Training
     if not args.skip_train:
+        print("\n" + "="*60)
+        print("STEP 2: TRAINING")
+        print("="*60)
+        
+        # Pass exp_dir to save models there
+        vae, history, norm_params, threshold_config = train_vae_combined(features_path_exp, output_dir=exp_dir)
+        
+        # Step 3: Evaluation
+        if not args.skip_eval:
+            print("\n" + "="*60)
+            print("STEP 3: EVALUATION")
+            print("="*60)
+            from evaluate import evaluate_model
+            # Save metrics/plots to exp_dir
+            evaluate_model(vae, features_path_exp, segments_path_exp, output_dir=exp_dir)
+            
+        # Step 4: Convert
+        if not args.skip_convert:
+            print("\n" + "="*60)
+            print("STEP 4: TFLITE CONVERSION")
+            print("="*60)
+            from convert_tflite import convert_and_save
+            # Save tflite to exp_dir/models
+            convert_and_save(vae, norm_params, output_dir=os.path.join(exp_dir, "models"))
+            
+            # Step 5: Update Production
+            update_production_models(exp_dir)
+            
+        print("\n" + "="*60)
+        print("PIPELINE COMPLETE")
+        print("="*60)
+        print(f"All results saved to: {exp_dir}")
+        print("Production models updated in: models/")
         print("\n" + "="*60)
         print("STEP 2: TRAINING")
         print("="*60)
