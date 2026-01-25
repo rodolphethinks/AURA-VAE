@@ -39,6 +39,10 @@ Input Audio → Preprocessing → Log-Mel Spectrogram → VAE Encoder → Latent
 - KL divergence regularizes latent space for better generalization
 - Compact model suitable for mobile deployment
 
+## Results
+
+![Analysis of Filante Sound Acquisition 3](experiments/legacy_results_v1/inference/Filante%20Sound%20Acquisition%203_analysis_v2.png)
+
 ## Project Structure
 
 ```
