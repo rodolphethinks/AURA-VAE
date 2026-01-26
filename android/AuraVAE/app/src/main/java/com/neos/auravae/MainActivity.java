@@ -1,40 +1,29 @@
 package com.neos.auravae;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.view.View;
 import android.widget.Button;
-import android.widget.FrameLayout;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.cardview.widget.CardView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-
-import com.neos.auravae.audio.AudioRecorder;
-import com.neos.auravae.ml.AnomalyDetector;
-import com.neos.auravae.ml.DetectionResult;
-
-import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * AURA-VAE Main Activity
  * 
  * Handles:
- * - Audio recording using AudioRecord API
- * - On-device VAE inference for anomaly detection
- * - UI updates for recording and analysis status
- * 
- * Designed for in-car use with large touch targets and clear indicators.
+ * - Starting/Stopping the Data Collection Service (Fleet Mode)
+ * - Handling "Recording Finished" events to prompt for Upload
  */
 public class MainActivity extends AppCompatActivity {
     
@@ -43,33 +32,46 @@ public class MainActivity extends AppCompatActivity {
     
     // UI Components
     private Button btnStartRecording;
-    private Button btnStopAnalyze;
-    private TextView txtDuration;
     private TextView txtRecordingStatus;
-    private TextView txtAnalysisStatus;
-    private TextView txtResultValue;
-    private TextView txtAnomalyScore;
-    private TextView txtSegmentsAnalyzed;
-    private TextView txtLoadingMessage;
+    private TextView txtAnalysisStatus; // Added for feedback
+    private TextView txtDuration;
     private View recordingIndicator;
-    private View analysisIndicator;
-    private CardView resultCard;
-    private FrameLayout loadingOverlay;
-    private ProgressBar confidenceBar;
     
-    // Audio recording
-    private AudioRecorder audioRecorder;
-    private boolean isRecording = false;
-    private long recordingStartTime = 0;
+    // Timer handlers
+    private final android.os.Handler timerHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private long startTime = 0;
+    private final Runnable timerRunnable = new Runnable() {
+        @Override
+        public void run() {
+            long millis = System.currentTimeMillis() - startTime;
+            int seconds = (int) (millis / 1000);
+            int minutes = seconds / 60;
+            seconds = seconds % 60;
+            
+            if (txtDuration != null) {
+                txtDuration.setText(String.format("Duration: %02d:%02d", minutes, seconds));
+            }
+            
+            timerHandler.postDelayed(this, 500);
+        }
+    };
     
-    // ML inference
-    private AnomalyDetector anomalyDetector;
-    private ExecutorService executorService;
-    
-    // UI update handler
-    private final Handler uiHandler = new Handler(Looper.getMainLooper());
-    private Runnable durationUpdater;
-    
+    // Broadcast Receiver for Recording Updates
+    private final BroadcastReceiver recordingReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (DataCollectionService.BROADCAST_RECORDING_STOPPED.equals(intent.getAction())) {
+                String filename = intent.getStringExtra(DataCollectionService.EXTRA_FILENAME);
+                
+                // Update UI to stopped state
+                updateCollectionUI(false);
+                
+                // Show confirmation
+                showUploadConfirmation(filename);
+            }
+        }
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -78,64 +80,46 @@ public class MainActivity extends AppCompatActivity {
         // Initialize views
         initViews();
         
-        // Initialize executor for background tasks
-        executorService = Executors.newSingleThreadExecutor();
-        
-        // Initialize audio recorder
-        audioRecorder = new AudioRecorder();
-        
-        // Load ML model
-        loadModel();
-        
         // Setup button listeners
-        setupListeners();
+        btnStartRecording.setOnClickListener(v -> toggleRecording());
     }
-    
+
     private void initViews() {
         btnStartRecording = findViewById(R.id.btnStartRecording);
-        btnStopAnalyze = findViewById(R.id.btnStopAnalyze);
-        txtDuration = findViewById(R.id.txtDuration);
         txtRecordingStatus = findViewById(R.id.txtRecordingStatus);
-        txtAnalysisStatus = findViewById(R.id.txtAnalysisStatus);
-        txtResultValue = findViewById(R.id.txtResultValue);
-        txtAnomalyScore = findViewById(R.id.txtAnomalyScore);
-        txtSegmentsAnalyzed = findViewById(R.id.txtSegmentsAnalyzed);
-        txtLoadingMessage = findViewById(R.id.txtLoadingMessage);
+        txtAnalysisStatus = findViewById(R.id.txtAnalysisStatus); // Init view
         recordingIndicator = findViewById(R.id.recordingIndicator);
-        analysisIndicator = findViewById(R.id.analysisIndicator);
-        resultCard = findViewById(R.id.resultCard);
-        loadingOverlay = findViewById(R.id.loadingOverlay);
-        confidenceBar = findViewById(R.id.confidenceBar);
-    }
-    
-    private void setupListeners() {
-        btnStartRecording.setOnClickListener(v -> startRecording());
-        btnStopAnalyze.setOnClickListener(v -> stopAndAnalyze());
-    }
-    
-    private void loadModel() {
-        showLoading(getString(R.string.loading_model));
+        txtDuration = findViewById(R.id.txtDuration);
         
-        executorService.execute(() -> {
-            try {
-                anomalyDetector = new AnomalyDetector(this);
-                
-                uiHandler.post(() -> {
-                    hideLoading();
-                    Toast.makeText(this, "Model loaded successfully", Toast.LENGTH_SHORT).show();
-                });
-            } catch (Exception e) {
-                e.printStackTrace();
-                uiHandler.post(() -> {
-                    hideLoading();
-                    Toast.makeText(this, getString(R.string.error_model) + ": " + e.getMessage(), 
-                            Toast.LENGTH_LONG).show();
-                });
-            }
-        });
+        // Hide unused legacy views if they exist to avoid confusion
+        View btnStopAnalyze = findViewById(R.id.btnStopAnalyze);
+        if (btnStopAnalyze != null) btnStopAnalyze.setVisibility(View.GONE);
     }
     
-    private void startRecording() {
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            registerReceiver(recordingReceiver, 
+                new IntentFilter(DataCollectionService.BROADCAST_RECORDING_STOPPED), 
+                Context.RECEIVER_NOT_EXPORTED);
+        } else {
+             registerReceiver(recordingReceiver, 
+                new IntentFilter(DataCollectionService.BROADCAST_RECORDING_STOPPED));
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        try {
+        //    unregisterReceiver(recordingReceiver);
+        } catch (IllegalArgumentException e) {
+           // Ignore if not registered
+        }
+    }
+
+    private void toggleRecording() {
         // Check permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -144,165 +128,71 @@ public class MainActivity extends AppCompatActivity {
                     PERMISSION_REQUEST_RECORD_AUDIO);
             return;
         }
-        
-        // Start recording
-        try {
-            audioRecorder.startRecording();
-            isRecording = true;
-            recordingStartTime = System.currentTimeMillis();
+
+        String currentText = btnStartRecording.getText().toString();
+        if (currentText.contains("START")) {
+            startServiceAction(DataCollectionService.ACTION_START);
+            updateCollectionUI(true);
+        } else {
+            startServiceAction(DataCollectionService.ACTION_STOP);
+            updateCollectionUI(false);
+        }
+    }
+    
+    private void startServiceAction(String action) {
+        Intent intent = new Intent(this, DataCollectionService.class);
+        intent.setAction(action);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
+    }
+
+    private void updateCollectionUI(boolean isRecording) {
+        if (isRecording) {
+            btnStartRecording.setText("STOP RECORDING");
+            btnStartRecording.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_stop));
+            txtRecordingStatus.setText("Recording (Background Service)...");
+            if (txtAnalysisStatus != null) txtAnalysisStatus.setText("Collecting Fleet Data..."); // Update status
+            if (recordingIndicator != null) recordingIndicator.setVisibility(View.VISIBLE);
             
-            // Update UI
-            updateRecordingUI(true);
+            // Start Timer
+            startTime = System.currentTimeMillis();
+            timerHandler.postDelayed(timerRunnable, 0);
             
-            // Start duration updater
-            startDurationUpdater();
-            
-        } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(this, getString(R.string.error_recording) + ": " + e.getMessage(),
-                    Toast.LENGTH_LONG).show();
-        }
-    }
-    
-    private void stopAndAnalyze() {
-        if (!isRecording) return;
-        
-        // Stop recording
-        short[] audioData = audioRecorder.stopRecording();
-        isRecording = false;
-        
-        // Stop duration updater
-        stopDurationUpdater();
-        
-        // Update UI
-        updateRecordingUI(false);
-        
-        // Analyze audio
-        if (audioData != null && audioData.length > 0) {
-            analyzeAudio(audioData);
         } else {
-            Toast.makeText(this, getString(R.string.error_recording), Toast.LENGTH_SHORT).show();
+            btnStartRecording.setText("START RECORDING");
+            btnStartRecording.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_start)); // Default
+            txtRecordingStatus.setText("Ready to Record");
+            if (txtAnalysisStatus != null) txtAnalysisStatus.setText("Idle (Data Collection Mode)"); // Update status
+             if (recordingIndicator != null) recordingIndicator.setVisibility(View.GONE);
+             
+            // Stop Timer
+            timerHandler.removeCallbacks(timerRunnable);
         }
     }
     
-    private void analyzeAudio(short[] audioData) {
-        showLoading(getString(R.string.loading_analyzing));
-        updateAnalysisStatus(true);
+    private void showUploadConfirmation(String filepath) {
+        if (filepath == null) return;
         
-        executorService.execute(() -> {
-            try {
-                // Run anomaly detection
-                DetectionResult result = anomalyDetector.detectAnomaly(audioData);
-                
-                uiHandler.post(() -> {
-                    hideLoading();
-                    updateAnalysisStatus(false);
-                    displayResult(result);
-                });
-                
-            } catch (Exception e) {
-                e.printStackTrace();
-                uiHandler.post(() -> {
-                    hideLoading();
-                    updateAnalysisStatus(false);
-                    Toast.makeText(this, getString(R.string.error_analysis) + ": " + e.getMessage(),
-                            Toast.LENGTH_LONG).show();
-                });
-            }
-        });
-    }
-    
-    private void displayResult(DetectionResult result) {
-        // Show result card
-        resultCard.setVisibility(View.VISIBLE);
-        
-        // Set result text and color
-        if (result.isAnomaly()) {
-            txtResultValue.setText(R.string.result_anomaly);
-            txtResultValue.setTextColor(ContextCompat.getColor(this, R.color.result_anomaly));
-        } else {
-            txtResultValue.setText(R.string.result_normal);
-            txtResultValue.setTextColor(ContextCompat.getColor(this, R.color.result_normal));
-        }
-        
-        // Set anomaly score
-        txtAnomalyScore.setText(String.format(Locale.US, 
-                getString(R.string.score_format), 
-                result.getAnomalyScore(), 
-                result.getThreshold()));
-        
-        // Set confidence bar (normalized score vs threshold)
-        int confidence = (int) Math.min(100, (result.getAnomalyScore() / result.getThreshold()) * 50);
-        confidenceBar.setProgress(confidence);
-        
-        // Show segments analyzed
-        txtSegmentsAnalyzed.setVisibility(View.VISIBLE);
-        txtSegmentsAnalyzed.setText(String.format(Locale.US,
-                getString(R.string.segments_format),
-                result.getSegmentsAnalyzed()));
-        
-        // Update analysis indicator
-        analysisIndicator.setBackgroundResource(R.drawable.status_indicator_success);
-        txtAnalysisStatus.setText(R.string.analysis_complete);
-    }
-    
-    private void updateRecordingUI(boolean recording) {
-        if (recording) {
-            btnStartRecording.setEnabled(false);
-            btnStopAnalyze.setEnabled(true);
-            recordingIndicator.setBackgroundResource(R.drawable.status_indicator_recording);
-            txtRecordingStatus.setText(R.string.status_recording);
-            resultCard.setVisibility(View.INVISIBLE);
-            txtSegmentsAnalyzed.setVisibility(View.GONE);
-        } else {
-            btnStartRecording.setEnabled(true);
-            btnStopAnalyze.setEnabled(false);
-            recordingIndicator.setBackgroundResource(R.drawable.status_indicator_inactive);
-            txtRecordingStatus.setText(R.string.status_stopped);
-        }
-    }
-    
-    private void updateAnalysisStatus(boolean analyzing) {
-        if (analyzing) {
-            analysisIndicator.setBackgroundResource(R.drawable.status_indicator_processing);
-            txtAnalysisStatus.setText(R.string.analysis_processing);
-        } else {
-            analysisIndicator.setBackgroundResource(R.drawable.status_indicator_inactive);
-            txtAnalysisStatus.setText(R.string.analysis_idle);
-        }
-    }
-    
-    private void startDurationUpdater() {
-        durationUpdater = new Runnable() {
-            @Override
-            public void run() {
-                if (isRecording) {
-                    long elapsed = System.currentTimeMillis() - recordingStartTime;
-                    int seconds = (int) (elapsed / 1000);
-                    int minutes = seconds / 60;
-                    seconds = seconds % 60;
-                    txtDuration.setText(String.format(Locale.US, 
-                            getString(R.string.duration_format), minutes, seconds));
-                    uiHandler.postDelayed(this, 500);
-                }
-            }
-        };
-        uiHandler.post(durationUpdater);
-    }
-    
-    private void stopDurationUpdater() {
-        if (durationUpdater != null) {
-            uiHandler.removeCallbacks(durationUpdater);
-        }
-    }
-    
-    private void showLoading(String message) {
-        txtLoadingMessage.setText(message);
-        loadingOverlay.setVisibility(View.VISIBLE);
-    }
-    
-    private void hideLoading() {
-        loadingOverlay.setVisibility(View.GONE);
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("Recording Finished")
+            .setMessage("Do you want to upload this recording to Telegram?\n\nFile: " + new java.io.File(filepath).getName())
+            .setPositiveButton("Yes, Upload", (dialog, which) -> {
+                Intent intent = new Intent(this, DataCollectionService.class);
+                intent.setAction(DataCollectionService.ACTION_UPLOAD_LAST);
+                startService(intent);
+                Toast.makeText(this, "Uploading in background...", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("No, Delete", (dialog, which) -> {
+                Intent intent = new Intent(this, DataCollectionService.class);
+                intent.setAction(DataCollectionService.ACTION_DISCARD_LAST);
+                startService(intent);
+                Toast.makeText(this, "Recording discarded.", Toast.LENGTH_SHORT).show();
+            })
+            .setCancelable(false)
+            .show();
     }
     
     @Override
@@ -312,29 +202,10 @@ public class MainActivity extends AppCompatActivity {
         
         if (requestCode == PERMISSION_REQUEST_RECORD_AUDIO) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startRecording();
+                toggleRecording();
             } else {
                 Toast.makeText(this, getString(R.string.error_permission), Toast.LENGTH_LONG).show();
             }
         }
-    }
-    
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        
-        if (isRecording) {
-            audioRecorder.stopRecording();
-        }
-        
-        if (anomalyDetector != null) {
-            anomalyDetector.close();
-        }
-        
-        if (executorService != null) {
-            executorService.shutdown();
-        }
-        
-        stopDurationUpdater();
     }
 }

@@ -14,7 +14,7 @@
     <string name="status_stopped">Recording stopped</string>
     
     <!-- Analysis -->
-    <string name="analysis_idle">Waiting for audio</string>
+    <string name="analysis_idle">Data Collection Mode</string>
     <string name="analysis_processing">Analyzing audio…</string>
     <string name="analysis_complete">Analysis complete</string>
     

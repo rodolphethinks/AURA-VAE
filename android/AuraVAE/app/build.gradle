@@ -14,6 +14,20 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // Read secrets from local.properties
+        def localProperties = new Properties()
+        def localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+             localProperties.load(new FileInputStream(localPropertiesFile))
+        }
+
+        buildConfigField "String", "TELEGRAM_BOT_TOKEN", "\"" + localProperties['TELEGRAM_BOT_TOKEN'] + "\""
+        buildConfigField "String", "TELEGRAM_CHAT_ID", "\"" + localProperties['TELEGRAM_CHAT_ID'] + "\""
+    }
+    
+    buildFeatures {
+        buildConfig true
     }
 
     buildTypes {
@@ -45,6 +59,9 @@ dependencies {
     
     // JSON parsing
     implementation 'com.google.code.gson:gson:2.10.1'
+
+    // Networking (for Telegram Uploads)
+    implementation 'com.squareup.okhttp3:okhttp:4.11.0'
     
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

@@ -41,22 +41,30 @@ import okhttp3.Response;
  */
 public class DataCollectionService extends Service {
     
+    public static final String ACTION_START = "com.neos.auravae.action.START";
+    public static final String ACTION_STOP = "com.neos.auravae.action.STOP";
+    public static final String ACTION_UPLOAD_LAST = "com.neos.auravae.action.UPLOAD";
+    public static final String ACTION_DISCARD_LAST = "com.neos.auravae.action.DISCARD";
+    public static final String EXTRA_FILENAME = "com.neos.auravae.extra.FILENAME";
+    public static final String BROADCAST_RECORDING_STOPPED = "com.neos.auravae.broadcast.STOPPED";
+
     private static final String TAG = "DataCollectionService";
     private static final String CHANNEL_ID = "AuraDataCollectionChannel";
     private static final int NOTIFICATION_ID = 1001;
     
-    // Config: 5 minute chunks
+    // Config: 5 minute chunks (Auto-mode only)
     private static final long RECORDING_CHUNK_DURATION_MS = 5 * 60 * 1000;
+    private boolean isManualMode = false;
 
     // Telegram Configuration
-    private static final String BOT_TOKEN = "8225968498:AAFiZUsJbIdpENP73vh_rs0k-j8aLt0x3nQ"; 
-    private static final String CHAT_ID = "7926094514"; // Updated with User ID
-    private static final String TELEGRAM_API_URL = "https://api.telegram.org/bot" + BOT_TOKEN + "/sendAudio";
+    private static final String BOT_TOKEN = BuildConfig.TELEGRAM_BOT_TOKEN; 
+    private static final String CHAT_ID = BuildConfig.TELEGRAM_CHAT_ID;
     
     private MediaRecorder mediaRecorder;
     private Handler handler;
-    private boolean isRecording = false;
+    public boolean isRecording = false;
     private File currentFile;
+    private File lastRecordedFile;
     private OkHttpClient httpClient;
 
     @Override
@@ -69,13 +77,58 @@ public class DataCollectionService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // Start Foreground immediately
-        startForeground(NOTIFICATION_ID, createNotification());
+        String action = intent != null ? intent.getAction() : null;
 
-        Log.d(TAG, "Service started. Initializing recording loop...");
-        startRecordingChunk();
+        if (ACTION_START.equals(action)) {
+            Log.i(TAG, "Manual Start Requested");
+            isManualMode = true;
+            startForeground(NOTIFICATION_ID, createNotification("Recording Audio..."));
+            if (!isRecording) startRecordingChunk();
+            
+        } else if (ACTION_STOP.equals(action)) {
+            Log.i(TAG, "Manual Stop Requested");
+            if (isRecording) {
+                stopRecording();
+                // Notify UI
+                Intent broadcast = new Intent(BROADCAST_RECORDING_STOPPED);
+                if (lastRecordedFile != null) {
+                    broadcast.putExtra(EXTRA_FILENAME, lastRecordedFile.getAbsolutePath());
+                }
+                sendBroadcast(broadcast);
+                stopForeground(true); // Allow service to be killed or go background
+            }
+            
+        } else if (ACTION_UPLOAD_LAST.equals(action)) {
+            Log.i(TAG, "Upload Requested for last file");
+            if (lastRecordedFile != null && lastRecordedFile.exists()) {
+                uploadToCloud(lastRecordedFile);
+                lastRecordedFile = null; // Clear ref
+            }
+            
+        } else if (ACTION_DISCARD_LAST.equals(action)) {
+            Log.i(TAG, "Discard Requested");
+            if (lastRecordedFile != null && lastRecordedFile.exists()) {
+                lastRecordedFile.delete();
+                lastRecordedFile = null;
+            }
+            
+        } else {
+            // Default/Auto-Boot behavior (Fleet Mode)
+            Log.i(TAG, "Auto-Start (Fleet Mode)");
+            isManualMode = false;
+            
+            // Start Foreground with Microphone Type specifically for Android 11+
+            Notification notification = createNotification("Collecting Fleet Data...");
+            if (Build.VERSION.SDK_INT >= 29) { // Build.VERSION_CODES.Q
+                startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
+            } else {
+                startForeground(NOTIFICATION_ID, notification);
+            }
+            
+            if (!isRecording) startRecordingChunk();
+        }
 
-        return START_STICKY; // Restart if killed
+        return START_NOT_STICKY;
     }
 
     private void startRecordingChunk() {
@@ -85,38 +138,90 @@ public class DataCollectionService extends Service {
 
         try {
             currentFile = createOutputFile();
-            Log.d(TAG, "Starting new recording chunk: " + currentFile.getAbsolutePath());
+            Log.d(TAG, "Starting recording: " + currentFile.getAbsolutePath());
 
             mediaRecorder = new MediaRecorder();
-            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            // Attempt 1: Standard AAC (Voice Config)
+            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION); 
             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
             mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-            mediaRecorder.setAudioSamplingRate(16000); // Standard for our model
-            mediaRecorder.setAudioEncodingBitRate(64000);
+            mediaRecorder.setAudioEncodingBitRate(64000); // 64kbps (Speech optimized)
+            mediaRecorder.setAudioSamplingRate(16000); // 16kHz (Standard wideband speech)
             mediaRecorder.setOutputFile(currentFile.getAbsolutePath());
 
-            mediaRecorder.prepare();
-            mediaRecorder.start();
-            isRecording = true;
+            try {
+                mediaRecorder.prepare();
+                mediaRecorder.start();
+                isRecording = true;
+                Log.d(TAG, "Recording started successfully (VOICE_RECOGNITION / AAC / 16kHz)");
+            } catch (Exception e1) {
+                Log.e(TAG, "Attempt 1 failed. Retrying with AMR_WB.", e1);
+                releaseMediaRecorder();
+                
+                // Attempt 2: AMR_WB (Wideband Speech)
+                try {
+                     if (currentFile.exists()) currentFile.delete(); currentFile = createOutputFile();
+                     mediaRecorder = new MediaRecorder();
+                     mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC); // Try generic MIC
+                     mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+                     mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_WB);
+                     mediaRecorder.setOutputFile(currentFile.getAbsolutePath());
+                     mediaRecorder.prepare();
+                     mediaRecorder.start();
+                     isRecording = true;
+                     Log.w(TAG, "Recording started (Fallback: AMR_WB)");
+                } catch (Exception e2) {
+                     Log.e(TAG, "Attempt 2 failed. Retrying with AMR_NB (Lowest Quality).", e2);
+                     releaseMediaRecorder();
 
-            // Schedule stop and next chunk
-            handler.postDelayed(this::rotateFile, RECORDING_CHUNK_DURATION_MS);
+                     // Attempt 3: AMR_NB (Narrowband - Old School GSM)
+                     try {
+                         if (currentFile.exists()) currentFile.delete(); currentFile = createOutputFile();
+                         mediaRecorder = new MediaRecorder();
+                         mediaRecorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT); // Try DEFAULT
+                         mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+                         mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+                         mediaRecorder.setOutputFile(currentFile.getAbsolutePath());
+                         mediaRecorder.prepare();
+                         mediaRecorder.start();
+                         isRecording = true;
+                         Log.w(TAG, "Recording started (Fallback: AMR_NB)");
+                     } catch (Exception e3) {
+                         Log.e(TAG, "All recording attempts failed.", e3);
+                         isRecording = false;
+                         throw e3;
+                     }
+                }
+            }
 
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to prepare MediaRecorder", e);
-            // Retry in 10 seconds if failed
-            handler.postDelayed(this::startRecordingChunk, 10000);
+            // Only schedule rotation in Auto/Fleet mode
+            if (!isManualMode) {
+                handler.postDelayed(this::rotateFile, RECORDING_CHUNK_DURATION_MS);
+            }
+
         } catch (Exception e) {
-            Log.e(TAG, "Generic error starting recording", e);
+            Log.e(TAG, "Error starting recording", e);
             handler.postDelayed(this::startRecordingChunk, 10000);
         }
     }
 
     private void rotateFile() {
-        Log.d(TAG, "rotating file...");
+        if (isManualMode) return; // Don't auto-rotate in manual mode
+        
+        Log.d(TAG, "Rotating file (Fleet Mode)...");
         stopRecording();
-        uploadToCloud(currentFile);
+        if (lastRecordedFile != null) {
+            uploadToCloud(lastRecordedFile);
+        }
         startRecordingChunk();
+    }
+
+    private void releaseMediaRecorder() {
+        if (mediaRecorder != null) {
+            mediaRecorder.reset();
+            mediaRecorder.release();
+            mediaRecorder = null;
+        }
     }
 
     private void stopRecording() {
@@ -124,12 +229,14 @@ public class DataCollectionService extends Service {
             try {
                 mediaRecorder.stop();
             } catch (RuntimeException e) {
-                // Handle case where stop is called immediately usually
                 Log.e(TAG, "Error stopping recorder", e);
             }
-            mediaRecorder.release();
-            mediaRecorder = null;
+            releaseMediaRecorder();
             isRecording = false;
+            lastRecordedFile = currentFile; // Store reference for upload/discard
+            if (isManualMode) {
+                handler.removeCallbacksAndMessages(null); // Clear any rotation tasks
+            }
         }
     }
 
@@ -188,13 +295,13 @@ public class DataCollectionService extends Service {
         return new File(dir, filename);
     }
 
-    private Notification createNotification() {
+    private Notification createNotification(String text) {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("AURA-VAE Data Collection")
-                .setContentText("Collecting fleet audio data in background...")
+                .setContentText(text)
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now) // Default icon, replace with app icon
                 .setContentIntent(pendingIntent)
                 .build();
