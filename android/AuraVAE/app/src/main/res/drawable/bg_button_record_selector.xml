@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Recording State (Red) -->
+    <item android:state_checked="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="999dp" />
+            <solid android:color="#08FFFFFF" />
+            <stroke android:width="1dp" android:color="#4DF87171" /> <!-- Red-400/30 -->
+        </shape>
+    </item>
+    <!-- Default State (White Glass) -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="999dp" />
+            <solid android:color="#08FFFFFF" />
+            <stroke android:width="1dp" android:color="#26FFFFFF" />
+        </shape>
+    </item>
+</selector>

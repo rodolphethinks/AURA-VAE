@@ -66,6 +66,34 @@ public class DataCollectionService extends Service {
     private File currentFile;
     private File lastRecordedFile;
     private OkHttpClient httpClient;
+    
+    // Binder for UI interaction
+    private final IBinder binder = new LocalBinder();
+    
+    public class LocalBinder extends android.os.Binder {
+        public DataCollectionService getService() {
+            return DataCollectionService.this;
+        }
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return binder;
+    }
+    
+    /**
+     * Get current microphone amplitude (0-32767)
+     */
+    public int getAmplitude() {
+        if (mediaRecorder != null && isRecording) {
+            try {
+                return mediaRecorder.getMaxAmplitude();
+            } catch (Exception e) {
+                return 0;
+            }
+        }
+        return 0;
+    }
 
     @Override
     public void onCreate() {
@@ -328,9 +356,4 @@ public class DataCollectionService extends Service {
         super.onDestroy();
     }
 
-    @Nullable
-    @Override
-    public IBinder onBind(Intent intent) {
-        return null; // pure start service
-    }
 }

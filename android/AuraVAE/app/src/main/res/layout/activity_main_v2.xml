@@ -1,0 +1,478 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_dashboard_gradient"
+    android:keepScreenOn="true"
+    android:padding="32dp">
+
+    <!-- Screen Container (1800x720 centered conceptual) -->
+    
+    <!-- LEFT PANEL: CONTROLS -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/leftPanel"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginEnd="32dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/centerDivider"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+        
+        <!-- App Title -->
+         <LinearLayout
+            android:id="@+id/titleContainer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            android:layout_marginTop="16dp">
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AURA"
+                android:textSize="72sp"
+                android:textColor="#F2FFFFFF"
+                android:letterSpacing="0.15"
+                android:fontFamily="sans-serif-light"/>
+                
+            <View
+                android:layout_width="96dp"
+                android:layout_height="2dp"
+                android:background="#60A5FA"
+                android:layout_marginTop="8dp"/>
+        </LinearLayout>
+
+        <!-- Glass Control Panel -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/controlCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_glass_panel_40"
+            android:padding="48dp"
+            app:layout_constraintTop_toBottomOf="@id/titleContainer"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <Button
+                android:id="@+id/btnStartRecording"
+                android:layout_width="0dp"
+                android:layout_height="80dp"
+                android:background="@drawable/bg_button_record_selector"
+                android:text="START RECORDING"
+                android:textColor="#E6FFFFFF"
+                android:textSize="20sp"
+                android:letterSpacing="0.2"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"/>
+
+            <TextView
+                android:id="@+id/txtTimer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textSize="64sp"
+                android:textColor="#E6FFFFFF"
+                android:fontFamily="sans-serif-light"
+                android:layout_marginTop="32dp"
+                app:layout_constraintTop_toBottomOf="@id/btnStartRecording"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"/>
+                
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ELAPSED TIME"
+                android:textSize="14sp"
+                android:textColor="#66FFFFFF"
+                android:letterSpacing="0.3"
+                android:layout_marginTop="8dp"
+                app:layout_constraintTop_toBottomOf="@id/txtTimer"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"/>
+                
+            <View
+                android:id="@+id/controlDivider"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#14FFFFFF"
+                android:layout_marginTop="32dp"
+                app:layout_constraintTop_toBottomOf="@id/txtTimer"/>
+                
+            <!-- Bottom Status Area (Playback/Recording Info) -->
+            <LinearLayout
+                android:id="@+id/recordingStatusArea"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="24dp"
+                app:layout_constraintTop_toBottomOf="@id/controlDivider">
+                
+                <FrameLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content">
+                    <ImageView
+                        android:id="@+id/statusIcon"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:padding="10dp"
+                        android:background="@drawable/bg_glass_button"
+                        android:src="@drawable/ic_mic"
+                        app:tint="#FFFFFF"/>
+                    <ImageView
+                        android:id="@+id/btnPlayback"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:padding="10dp"
+                        android:background="@drawable/bg_glass_button"
+                        android:src="@drawable/ic_play"
+                        app:tint="#4ADE80"
+                        android:visibility="gone"
+                        android:clickable="true"
+                        android:focusable="true"/>
+                </FrameLayout>
+                
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginStart="16dp">
+                    
+                    <TextView
+                        android:id="@+id/txtStatusTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="READY TO RECORD"
+                        android:textColor="#B3FFFFFF"
+                        android:textSize="12sp"
+                        android:letterSpacing="0.1"/>
+                        
+                     <ProgressBar
+                        android:id="@+id/progressAudio"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="4dp"
+                        android:progressDrawable="@drawable/bg_glass_panel"
+                        android:progressTint="#F87171" 
+                        android:layout_marginTop="4dp"
+                        android:progress="0"/>
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Divider -->
+    <View
+        android:id="@+id/centerDivider"
+        android:layout_width="1dp"
+        android:layout_height="0dp"
+        android:layout_marginVertical="64dp"
+        android:background="#20FFFFFF"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- RIGHT PANEL: TABS & CONTENT -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/rightPanel"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="32dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/centerDivider"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <!-- Tab Switcher (Animated) -->
+        <FrameLayout
+            android:id="@+id/tabContainer"
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+            android:background="@drawable/bg_tab_container"
+            android:padding="4dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <!-- Active Indicator (Sliding Pill) -->
+            <View
+                android:id="@+id/tabIndicator"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_tab_active"
+                android:layout_gravity="start"/>
+                
+            <!-- Text Labels -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+                
+                <TextView
+                    android:id="@+id/tabAnalytics"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FLEET ANALYTICS"
+                    android:textColor="#FFFFFF"
+                    android:paddingHorizontal="32dp"
+                    android:paddingVertical="12dp"
+                    android:background="@android:color/transparent"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.2"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tabCollection"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="LIVE COLLECTION"
+                    android:textColor="#80FFFFFF"
+                    android:paddingHorizontal="32dp"
+                    android:paddingVertical="12dp"
+                    android:background="@android:color/transparent"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.2"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </FrameLayout>
+
+
+        <!-- CONTENT CARD -->
+        <FrameLayout
+            android:id="@+id/contentCard"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="32dp"
+            android:background="@drawable/bg_glass_panel_24"
+            android:padding="48dp"
+            app:layout_constraintTop_toBottomOf="@id/tabContainer"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+            
+            <!-- PANEL 1: FLEET ANALYTICS (ANOMALY) -->
+            <LinearLayout
+                android:id="@+id/panelAnalytics"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="visible">
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="System Status"
+                    android:textSize="28sp"
+                    android:textColor="#E6FFFFFF"
+                    android:fontFamily="sans-serif-light"/>
+                
+                <View
+                    android:layout_width="64dp"
+                    android:layout_height="1dp"
+                    android:background="#60A5FA"
+                    android:layout_marginTop="8dp"/>
+                    
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="32dp">
+                    
+                    <!-- Item 1 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="12dp">
+                        <ImageView android:id="@+id/dotFleet" android:layout_width="12dp" android:layout_height="12dp" android:src="@drawable/ic_status_dot_green"/>
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Fleet Collection" android:textColor="#B3FFFFFF" android:textSize="18sp" android:layout_marginStart="16dp"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ACTIVE" android:textColor="#E64ADE80" android:textSize="16sp" android:textStyle="bold" android:letterSpacing="0.1"/>
+                    </LinearLayout>
+                    <!-- Item 2 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="12dp">
+                        <ImageView android:id="@+id/dotSystem" android:layout_width="12dp" android:layout_height="12dp" android:src="@drawable/ic_status_dot_green"/>
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="System Normal" android:textColor="#B3FFFFFF" android:textSize="18sp" android:layout_marginStart="16dp"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="NOMINAL" android:textColor="#E64ADE80" android:textSize="16sp" android:textStyle="bold" android:letterSpacing="0.1"/>
+                    </LinearLayout>
+                     <!-- Item 3 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="12dp">
+                        <ImageView android:id="@+id/dotProcessing" android:layout_width="12dp" android:layout_height="12dp" android:src="@drawable/ic_status_dot_amber"/>
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Data Processing" android:textColor="#B3FFFFFF" android:textSize="18sp" android:layout_marginStart="16dp"/>
+                        <TextView android:id="@+id/txtProcessingStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="STANDBY" android:textColor="#E6FBBF24" android:textSize="16sp" android:textStyle="bold" android:letterSpacing="0.1"/>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#14FFFFFF" android:layout_marginTop="32dp" android:layout_marginBottom="32dp"/>
+                
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="bottom">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ANOMALY SCORE" android:textColor="#99FFFFFF" android:textSize="14sp" android:letterSpacing="0.2"/>
+                    <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="NORMAL RANGE" android:textColor="#66FFFFFF" android:textSize="14sp" android:letterSpacing="0.1"/>
+                </LinearLayout>
+                
+                <TextView
+                    android:id="@+id/txtAnomalyScore"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="23%"
+                    android:textSize="48sp"
+                    android:textColor="#FFFFFF"
+                    android:fontFamily="sans-serif-light"
+                    android:layout_marginVertical="8dp"/>
+                    
+                <ProgressBar
+                    android:id="@+id/progressAnomaly"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="12dp"
+                    android:progressDrawable="@drawable/bg_glass_panel"
+                    android:progressTint="#4ADE80"
+                    android:backgroundTint="#20FFFFFF"
+                    android:progress="23"/>
+                 
+                 <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:text="0%" android:textColor="#40FFFFFF" android:textSize="12sp" android:layout_weight="1"/>
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:text="25%" android:textColor="#40FFFFFF" android:textSize="12sp" android:layout_weight="1" android:gravity="center"/>
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:text="50%" android:textColor="#40FFFFFF" android:textSize="12sp" android:layout_weight="1" android:gravity="center"/>
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:text="75%" android:textColor="#40FFFFFF" android:textSize="12sp" android:layout_weight="1" android:gravity="center"/>
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:text="100%" android:textColor="#40FFFFFF" android:textSize="12sp" android:layout_weight="1" android:gravity="end"/>
+                </LinearLayout>
+
+            </LinearLayout>
+
+
+            <!-- PANEL 2: LIVE COLLECTION (FLEET) -->
+            <LinearLayout
+                android:id="@+id/panelCollection"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="gone">
+                
+                <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                     <ImageView android:layout_width="28dp" android:layout_height="28dp" android:src="@drawable/ic_mic" app:tint="#E6FFFFFF"/>
+                     <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Audio Collection"
+                        android:textSize="28sp"
+                        android:textColor="#E6FFFFFF"
+                        android:fontFamily="sans-serif-light"
+                        android:layout_marginStart="16dp"/>
+                </LinearLayout>
+                
+                <View
+                    android:layout_width="64dp"
+                    android:layout_height="1dp"
+                    android:background="#A78BFA" 
+                    android:layout_marginTop="8dp"/>
+                
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:paddingVertical="12dp"
+                    android:layout_marginTop="32dp">
+                    <ImageView android:id="@+id/micStatusIcon" android:layout_width="12dp" android:layout_height="12dp" android:src="@drawable/ic_status_dot_green"/>
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Built-in Microphone" android:textColor="#B3FFFFFF" android:textSize="18sp" android:layout_marginStart="16dp"/>
+                    <TextView android:id="@+id/txtMicStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="READY" android:textColor="#E64ADE80" android:textSize="16sp" android:textStyle="bold" android:letterSpacing="0.1"/>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#14FFFFFF" android:layout_marginTop="32dp" android:layout_marginBottom="32dp"/>
+                
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="bottom">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="INPUT LEVEL" android:textColor="#99FFFFFF" android:textSize="14sp" android:letterSpacing="0.2"/>
+                    <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
+                    <TextView android:id="@+id/txtInputMode" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MONITORING" android:textColor="#66FFFFFF" android:textSize="14sp" android:letterSpacing="0.1"/>
+                </LinearLayout>
+                
+                <TextView
+                    android:id="@+id/txtInputLevel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0%"
+                    android:textSize="48sp"
+                    android:textColor="#FFFFFF"
+                    android:fontFamily="sans-serif-light"
+                    android:layout_marginVertical="8dp"/>
+                    
+                 <!-- Viz Bars -->
+                 <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginBottom="48dp">
+                    <ProgressBar
+                         android:id="@+id/bar1"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:progressDrawable="@drawable/bg_glass_panel"
+                        android:progressTint="#C084FC"
+                        android:layout_marginVertical="2dp"
+                        android:progress="0"/>
+                     <ProgressBar
+                         android:id="@+id/bar2"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:progressDrawable="@drawable/bg_glass_panel"
+                        android:progressTint="#C084FC"
+                        android:layout_marginVertical="2dp"
+                        android:progress="0"/>
+                     <ProgressBar
+                         android:id="@+id/bar3"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:progressDrawable="@drawable/bg_glass_panel"
+                        android:progressTint="#C084FC"
+                        android:layout_marginVertical="2dp"
+                        android:progress="0"/>
+                 </LinearLayout>
+                 
+                 <Button
+                    android:id="@+id/btnSendTelegram"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_button_cyan"
+                    android:text="SEND TO TELEGRAM"
+                    android:textColor="#22D3EE"
+                    android:padding="20dp"
+                    android:letterSpacing="0.2"
+                    android:drawableStart="@drawable/ic_send"
+                    android:drawablePadding="16dp"
+                    android:paddingStart="32dp"
+                    android:drawableTint="#22D3EE"/>
+            </LinearLayout>
+
+        </FrameLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
