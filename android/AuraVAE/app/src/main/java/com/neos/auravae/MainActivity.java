@@ -32,10 +32,15 @@ public class MainActivity extends AppCompatActivity {
     
     // UI Components
     private Button btnStartRecording;
-    private TextView txtRecordingStatus;
-    private TextView txtAnalysisStatus; // Added for feedback
-    private TextView txtDuration;
-    private View recordingIndicator;
+    private TextView txtTimer;
+    private TextView txtTimerLabel;
+    
+    // HUD Components
+    private TextView tabFleet, tabAnalysis;
+    private View statusContainer, anomalySection;
+    private TextView statusFleet, statusProcessing, txtAnomalyScore;
+    
+    private boolean isAnalysisMode = false;
     
     // Timer handlers
     private final android.os.Handler timerHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -48,8 +53,17 @@ public class MainActivity extends AppCompatActivity {
             int minutes = seconds / 60;
             seconds = seconds % 60;
             
-            if (txtDuration != null) {
-                txtDuration.setText(String.format("Duration: %02d:%02d", minutes, seconds));
+            if (txtTimer != null) {
+                txtTimer.setText(String.format("%02d:%02d", minutes, seconds));
+            }
+            
+            // Mock Anomaly Score Update (since real inference needs wiring)
+            if (isAnalysisMode && txtAnomalyScore != null) {
+                 // Random fluctuation for "Demo" effect on the HUD
+                 if (millis % 2000 < 50) { 
+                     int mockScore = (int)(Math.random() * 30);
+                     txtAnomalyScore.setText(mockScore + "%");
+                 }
             }
             
             timerHandler.postDelayed(this, 500);
@@ -75,25 +89,58 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_main_hud); // Use new HUD layout
         
         // Initialize views
         initViews();
         
         // Setup button listeners
         btnStartRecording.setOnClickListener(v -> toggleRecording());
+        
+        // Tab Listeners
+        tabFleet.setOnClickListener(v -> setMode(false));
+        tabAnalysis.setOnClickListener(v -> setMode(true));
+        
+        // Default Mode
+        setMode(false);
     }
 
     private void initViews() {
         btnStartRecording = findViewById(R.id.btnStartRecording);
-        txtRecordingStatus = findViewById(R.id.txtRecordingStatus);
-        txtAnalysisStatus = findViewById(R.id.txtAnalysisStatus); // Init view
-        recordingIndicator = findViewById(R.id.recordingIndicator);
-        txtDuration = findViewById(R.id.txtDuration);
+        txtTimer = findViewById(R.id.txtTimer);
+        txtTimerLabel = findViewById(R.id.txtTimerLabel);
         
-        // Hide unused legacy views if they exist to avoid confusion
-        View btnStopAnalyze = findViewById(R.id.btnStopAnalyze);
-        if (btnStopAnalyze != null) btnStopAnalyze.setVisibility(View.GONE);
+        tabFleet = findViewById(R.id.tabFleet);
+        tabAnalysis = findViewById(R.id.tabAnalysis);
+        
+        statusContainer = findViewById(R.id.statusContainer);
+        anomalySection = findViewById(R.id.anomalySection);
+        
+        statusFleet = findViewById(R.id.statusFleet);
+        statusProcessing = findViewById(R.id.statusProcessing);
+        txtAnomalyScore = findViewById(R.id.txtAnomalyScore);
+    }
+    
+    private void setMode(boolean analysisMode) {
+        isAnalysisMode = analysisMode;
+        
+        if (analysisMode) {
+            tabAnalysis.setTextColor(0xFFFFFFFF);
+            tabAnalysis.setBackgroundResource(R.drawable.bg_tab_active);
+            tabFleet.setTextColor(0x80FFFFFF);
+            tabFleet.setBackgroundResource(0);
+            
+            statusContainer.setVisibility(View.GONE);
+            anomalySection.setVisibility(View.VISIBLE);
+        } else {
+            tabFleet.setTextColor(0xFFFFFFFF);
+            tabFleet.setBackgroundResource(R.drawable.bg_tab_active);
+            tabAnalysis.setTextColor(0x80FFFFFF);
+            tabAnalysis.setBackgroundResource(0);
+            
+            statusContainer.setVisibility(View.VISIBLE);
+            anomalySection.setVisibility(View.GONE);
+        }
     }
     
     @Override
@@ -152,10 +199,15 @@ public class MainActivity extends AppCompatActivity {
     private void updateCollectionUI(boolean isRecording) {
         if (isRecording) {
             btnStartRecording.setText("STOP RECORDING");
-            btnStartRecording.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_stop));
-            txtRecordingStatus.setText("Recording (Background Service)...");
-            if (txtAnalysisStatus != null) txtAnalysisStatus.setText("Collecting Fleet Data..."); // Update status
-            if (recordingIndicator != null) recordingIndicator.setVisibility(View.VISIBLE);
+            btnStartRecording.setBackgroundResource(R.drawable.bg_glass_button_recording);
+            btnStartRecording.setTextColor(0xFFEF4444); // Red Text
+            
+            // HUD Updates
+            if (statusFleet != null) {
+                statusFleet.setText("ACTIVE");
+                statusFleet.setTextColor(0xFF4ADE80); // Green
+            }
+            if (statusProcessing != null) statusProcessing.setText("BUFFERING...");
             
             // Start Timer
             startTime = System.currentTimeMillis();
@@ -163,13 +215,19 @@ public class MainActivity extends AppCompatActivity {
             
         } else {
             btnStartRecording.setText("START RECORDING");
-            btnStartRecording.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_start)); // Default
-            txtRecordingStatus.setText("Ready to Record");
-            if (txtAnalysisStatus != null) txtAnalysisStatus.setText("Idle (Data Collection Mode)"); // Update status
-             if (recordingIndicator != null) recordingIndicator.setVisibility(View.GONE);
-             
+            btnStartRecording.setBackgroundResource(R.drawable.bg_glass_button);
+            btnStartRecording.setTextColor(0xFFFFFFFF); // White Text
+            
+             // HUD Updates
+            if (statusFleet != null) {
+                statusFleet.setText("STANDBY");
+                statusFleet.setTextColor(0xFFFBBF24); // Amber
+            }
+            if (statusProcessing != null) statusProcessing.setText("IDLE");
+
             // Stop Timer
             timerHandler.removeCallbacks(timerRunnable);
+            txtTimer.setText("00:00");
         }
     }
     
