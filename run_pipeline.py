@@ -46,8 +46,8 @@ TRAINING_AUDIO_FILES = [
     "Filante Sound Acquisition 2_cleaned.wav",
     # Cleaned audio from third recording
     "Filante Sound Acquisition 3_cleaned.wav",
+    "Filante Sound Acquisition 4_cleaned.wav",
     # Add more cleaned audio files here as you collect them:
-    # "Filante Sound Acquisition 4_cleaned.wav",
 ]
 
 
@@ -412,6 +412,18 @@ def interactive_anomaly_review(audio_path, regions_sorted):
                     with open(__file__, 'w') as f:
                         f.writelines(lines)
                     print(f"✓ Added to TRAINING_AUDIO_FILES.")
+                    
+                    # Auto-retrain
+                    retrain = input("\nStart retraining pipeline now? (Will preprocess all files including new one) [y/N]: ").strip().lower()
+                    if retrain == 'y':
+                        import subprocess
+                        print("\n" + "="*60)
+                        print("TRIGGERING RETRAINING PIPELINE")
+                        print("="*60)
+                        # We run without arguments to force preprocessing of the new file
+                        subprocess.check_call([sys.executable, __file__])
+                        sys.exit(0)
+
                 else:
                     print("! Already in list.")
             else:

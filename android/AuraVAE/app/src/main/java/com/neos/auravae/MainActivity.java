@@ -14,6 +14,7 @@ import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.os.IBinder;
 import android.view.MotionEvent;
 import android.view.View;
@@ -205,11 +206,12 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     if (txtProcessingStatus != null) txtProcessingStatus.setText("READY");
                 });
-            } catch (IOException e) {
+            } catch (Exception e) {
+                Log.e(TAG, "ML Initialization error", e);
                 e.printStackTrace();
                 runOnUiThread(() -> {
-                    if (txtProcessingStatus != null) txtProcessingStatus.setText("ERROR");
-                    Toast.makeText(this, "ML Init Failed", Toast.LENGTH_SHORT).show();
+                    if (txtProcessingStatus != null) txtProcessingStatus.setText("ML ERROR");
+                    Toast.makeText(this, "ML Model Incompatible: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
         });

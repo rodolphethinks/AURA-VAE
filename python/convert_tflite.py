@@ -56,10 +56,10 @@ class AnomalyScoreLayer(keras.layers.Layer):
     
     def call(self, inputs):
         input_tensor, reconstruction = inputs
-        # Compute MSE using keras.ops
-        diff = keras.ops.subtract(input_tensor, reconstruction)
-        squared = keras.ops.square(diff)
-        mse = keras.ops.mean(squared, axis=[1, 2, 3])
+        # Compute MSE using tf math
+        diff = tf.subtract(input_tensor, reconstruction)
+        squared = tf.square(diff)
+        mse = tf.reduce_mean(squared, axis=[1, 2, 3])
         return mse
 
 
@@ -123,10 +123,13 @@ def convert_to_tflite(model: keras.Model,
         
         converter.representative_dataset = representative_dataset
         # Keep float32 inputs/outputs for easier integration
+        # MODIFIED: Removed SELECT_TF_OPS to ensure compatibility with standard TFLite runtime
+        # and prevent FULLY_CONNECTED version 12 requirement if possible.
         converter.target_spec.supported_ops = [
-            tf.lite.OpsSet.TFLITE_BUILTINS,
-            tf.lite.OpsSet.SELECT_TF_OPS
+            tf.lite.OpsSet.TFLITE_BUILTINS
         ]
+        # Experimental: Force disabling of new quantizer if available to ensure older opset
+        converter._experimental_new_quantizer = False
     
     # Convert
     tflite_model = converter.convert()
@@ -213,7 +216,13 @@ def convert_vae_to_tflite(vae=None, norm_params=None, output_dir=None):
              weights_path = os.path.join(MODELS_DIR, MODEL_FILENAME)
         
         if os.path.exists(weights_path):
-             vae.load_weights(weights_path)
+             # Skip mismatch to handle loss metrics variables which are not saved in older versions but expected in newer
+             # or vice versa depending on Keras/TF version mix.
+             try:
+                 vae.load_weights(weights_path, by_name=True, skip_mismatch=True)
+             except ValueError:
+                 # Fallback for .h5 or different format issues
+                 vae.load_weights(weights_path)
              print(f"  Loaded weights from: {weights_path}")
         else:
              print(f"  Error: Could not find weights at {weights_path}")
