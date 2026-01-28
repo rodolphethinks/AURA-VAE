@@ -34,6 +34,7 @@ import androidx.core.content.ContextCompat;
 
 import com.neos.auravae.ml.AnomalyDetector;
 import com.neos.auravae.ml.DetectionResult;
+import com.neos.auravae.audio.AudioFileDecoder;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -224,40 +225,69 @@ public class MainActivity extends AppCompatActivity {
         }
         
         mlExecutor.execute(() -> {
-            // Simulate processing time if model is fast
-            try { Thread.sleep(500); } catch (InterruptedException e) {}
-            
-            // TODO: In a real app, pass the file path to Detect.
-            // Since AnomalyDetector currently reads from AudioRecorder or similar pattern, 
-            // check if it supports file input.
-            // For now, we will assume we can wire it up or simulate the RESULT based on the code provided.
-            // If AnomalyDetector implementation is tricky, simulate a realistic result.
-            
-            // Wait: The AnomalyDetector code I saw was initialized but I didn't see a `detect(File)` method.
-            // I will assume for this turn that I cannot easily refactor AnomalyDetector to read files 
-            // without seeing its full content.
-            // So we will perform a "Mock" inference that looks real but returns a random realistic score.
-            
-            float score = (float) (Math.random() * 0.2f); // Low score usually normal
-            boolean isAnomaly = score > 0.1f;
-            
-            runOnUiThread(() -> {
-                 if (txtAnomalyScore != null) {
-                     int pct = (int)(score * 100 * 5); // Scale for UI (0-1 -> 0-100% sort of)
-                     if (pct > 100) pct = 100;
-                     txtAnomalyScore.setText(pct + "%");
-                     if (progressAnomaly != null) {
-                         progressAnomaly.setProgress(pct);
-                         progressAnomaly.setProgressTintList(android.content.res.ColorStateList.valueOf(
-                            isAnomaly ? 0xFFEF4444 : 0xFF4ADE80
-                         ));
+            try {
+                // 1. Decode Audio (AAC -> PCM)
+                short[] audioData = AudioFileDecoder.decode(filePath);
+                
+                // 2. Run Inference
+                DetectionResult result = anomalyDetector.detectAnomaly(audioData);
+                
+                float score = result.getAnomalyScore();
+                boolean isAnomaly = result.isAnomaly();
+                
+                runOnUiThread(() -> {
+                     if (txtAnomalyScore != null) {
+                         // Format score for display
+                         // Score 0.04 (normal) -> ~20%
+                         // Score 0.06 (threshold) -> 60%?
+                         // Score 0.30 (anomaly) -> 100%
+                         
+                         // Simple visualization mapping:
+                         // 0.00 - 0.10 => 0 - 100% (Linear for sensitivity)
+                         int pct = (int)(score * 1000); 
+                         if (pct > 100) pct = 100; // Cap for progress bar
+                         
+                         txtAnomalyScore.setText(String.format("%.3f", score));
+                         if (progressAnomaly != null) {
+                             // Scale for progress bar: 0.06 is the threshold
+                             // Let's make the threshold be around 60% of the bar
+                             // Bar max = 100.
+                             // val = (score / 0.10) * 100
+                             int barVal = (int)((score / 0.10f) * 100);
+                             if (barVal > 100) barVal = 100;
+                             progressAnomaly.setProgress(barVal);
+                             
+                             // Color coding
+                             if (isAnomaly) {
+                                 progressAnomaly.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFEF4444)); // Red
+                             } else {
+                                 progressAnomaly.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFF10B981)); // Green
+                             }
+                         }
                      }
+                     
                      if (txtProcessingStatus != null) {
-                         txtProcessingStatus.setText(isAnomaly ? "ANOMALY" : "NORMAL");
-                         txtProcessingStatus.setTextColor(isAnomaly ? 0xFFEF4444 : 0xFF4ADE80);
+                         if (isAnomaly) {
+                             txtProcessingStatus.setText("ANOMALY DETECTED");
+                             txtProcessingStatus.setTextColor(0xFFEF4444); // Red
+                         } else {
+                             txtProcessingStatus.setText("NORMAL (SAFE)");
+                             txtProcessingStatus.setTextColor(0xFF10B981); // Green
+                         }
+                         
+                         startPulseAnimation(txtProcessingStatus);
                      }
-                 }
-            });
+                });
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Inference failed", e);
+                runOnUiThread(() -> {
+                     if (txtProcessingStatus != null) {
+                         txtProcessingStatus.setText("ERROR");
+                         txtProcessingStatus.setTextColor(0xFFEF4444);
+                     }
+                });
+            }
         });
     }
 

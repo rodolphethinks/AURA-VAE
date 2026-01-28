@@ -21,7 +21,7 @@ from typing import Tuple, Dict, Optional
 from config import (
     MODELS_DIR, RESULTS_DIR, PLOTS_DIR, METRICS_DIR, PROCESSED_DATA_DIR,
     MODEL_FILENAME, NORM_PARAMS_FILENAME,
-    ANOMALY_THRESHOLD_K, ANOMALY_THRESHOLD_PERCENTILE,
+    ANOMALY_THRESHOLD_K, ANOMALY_THRESHOLD_PERCENTILE, ANOMALY_THRESHOLD_OVERRIDE,
     INPUT_SHAPE, create_directories
 )
 from preprocessing import FeatureNormalizer, generate_synthetic_anomalies
@@ -68,6 +68,11 @@ def compute_threshold(scores: np.ndarray,
     Returns:
         Threshold value
     """
+    # Check for manual override
+    if ANOMALY_THRESHOLD_OVERRIDE is not None:
+        print(f"Using manual threshold override: {ANOMALY_THRESHOLD_OVERRIDE}")
+        return ANOMALY_THRESHOLD_OVERRIDE
+
     if method == 'std':
         threshold = np.mean(scores) + k * np.std(scores)
     elif method == 'percentile':
@@ -348,8 +353,10 @@ def evaluate_model(vae=None, norm_params=None, features_path=None, segments_path
     print(f"  Threshold (mean + {ANOMALY_THRESHOLD_K}σ): {threshold_std:.6f}")
     print(f"  Threshold ({ANOMALY_THRESHOLD_PERCENTILE}th percentile): {threshold_pct:.6f}")
     
-    # Use std-based threshold
-    threshold = threshold_std
+    # Use percentile-based threshold for better robustness on mixed datasets
+    # (Prevents silence from dragging the threshold down too far)
+    threshold = threshold_pct
+    print(f"  > Selected Threshold (Percentile): {threshold:.6f}")
     
     # =========================================================================
     # 4. Evaluate detection performance

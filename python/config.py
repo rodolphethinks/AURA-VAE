@@ -118,7 +118,14 @@ LR_MIN = 1e-6
 ANOMALY_THRESHOLD_K = 3.0
 
 # Percentile-based threshold (alternative)
-ANOMALY_THRESHOLD_PERCENTILE = 95
+# Set to 99.99 or 100 to ensure almost ALL training data is considered normal
+# This is better for mixed datasets (Silent Studio + Noisy Car)
+ANOMALY_THRESHOLD_PERCENTILE = 99.99
+
+# MANUAL OVERRIDE (Set to None to use calculated value)
+# Useful if the calculated threshold is still too sensitive for real-world deployment
+# A typical "safe" value for noisy environments is 0.06 - 0.08
+ANOMALY_THRESHOLD_OVERRIDE = 0.06
 
 # =============================================================================
 # ANDROID-SPECIFIC PARAMETERS

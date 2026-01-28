@@ -280,9 +280,20 @@ public class AnomalyDetector {
         
         // Use detector model if available (outputs score directly)
         if (detectorInterpreter != null) {
-            float[][] output = new float[1][1];
-            detectorInterpreter.run(input, output);
-            return output[0][0];
+            // TFLite output shape mismatch fix:
+            // Python convert_tflite.py output: [1]
+            // Java attempted: [1][1]
+            // Fix: Use flat array [1] or check output tensor shape
+            float[] output = new float[1];
+            try {
+                detectorInterpreter.run(input, output);
+                return output[0];
+            } catch (Exception e) {
+                // Fallback for shape mismatch [1, 1]
+                float[][] output2D = new float[1][1];
+                detectorInterpreter.run(input, output2D);
+                return output2D[0][0];
+            }
         }
         
         // Otherwise use reconstruction model and compute MSE
