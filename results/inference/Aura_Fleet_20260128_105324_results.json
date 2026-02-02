@@ -1,0 +1,65 @@
+{
+  "audio_file": "..\\..\\data\\inference_check\\Aura_Fleet_20260128_105324.m4a",
+  "total_segments": 7,
+  "anomalous_segments": 5,
+  "anomaly_percentage": 71.42857142857143,
+  "threshold": 0.06,
+  "score_stats": {
+    "min": 0.048987094312906265,
+    "max": 0.1913510113954544,
+    "mean": 0.10991246998310089,
+    "median": 0.10880155116319656,
+    "std": 0.05186009034514427
+  },
+  "segment_results": [
+    {
+      "segment_id": 0,
+      "start_time": 0.0,
+      "end_time": 1.0,
+      "anomaly_score": 0.1913510113954544,
+      "is_anomaly": true
+    },
+    {
+      "segment_id": 1,
+      "start_time": 0.5,
+      "end_time": 1.5,
+      "anomaly_score": 0.05526697635650635,
+      "is_anomaly": false
+    },
+    {
+      "segment_id": 2,
+      "start_time": 1.0,
+      "end_time": 2.0,
+      "anomaly_score": 0.048987094312906265,
+      "is_anomaly": false
+    },
+    {
+      "segment_id": 3,
+      "start_time": 1.5,
+      "end_time": 2.5,
+      "anomaly_score": 0.06505268812179565,
+      "is_anomaly": true
+    },
+    {
+      "segment_id": 4,
+      "start_time": 2.0,
+      "end_time": 3.0,
+      "anomaly_score": 0.10880155116319656,
+      "is_anomaly": true
+    },
+    {
+      "segment_id": 5,
+      "start_time": 2.5,
+      "end_time": 3.5,
+      "anomaly_score": 0.13825644552707672,
+      "is_anomaly": true
+    },
+    {
+      "segment_id": 6,
+      "start_time": 3.0,
+      "end_time": 4.0,
+      "anomaly_score": 0.16167153418064117,
+      "is_anomaly": true
+    }
+  ]
+}

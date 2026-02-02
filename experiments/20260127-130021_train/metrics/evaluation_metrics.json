@@ -1,0 +1,31 @@
+{
+  "threshold": 0.04229747674465179,
+  "threshold_method": "mean + 3.0*std",
+  "normal_scores": {
+    "mean": 0.03000982105731964,
+    "std": 0.01400055456906557,
+    "min": 0.016606159508228302,
+    "max": 0.17025160789489746
+  },
+  "anomaly_scores": {
+    "mean": 40.0937385559082,
+    "std": 545.5517578125,
+    "min": 0.378078818321228,
+    "max": 7736.0390625
+  },
+  "detection": {
+    "normal_accuracy": 90.31914893617021,
+    "anomaly_detection_rate": 100.0,
+    "false_positive_rate": 9.680851063829792,
+    "false_negative_rate": 0.0
+  },
+  "roc": {
+    "auc": 1.0,
+    "optimal_threshold": 0.378078818321228,
+    "optimal_tpr": 1.0,
+    "optimal_fpr": 0.0
+  },
+  "precision_recall": {
+    "pr_auc": 1.0
+  }
+}

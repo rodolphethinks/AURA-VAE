@@ -71,22 +71,40 @@ public class MelSpectrogramExtractor {
             hzPoints[i] = melToHz(melPoints[i]);
         }
         
-        // Convert to FFT bin indices
-        int[] binPoints = new int[melPoints.length];
-        for (int i = 0; i < melPoints.length; i++) {
-            binPoints[i] = (int) Math.floor((N_FFT + 1) * hzPoints[i] / SAMPLE_RATE);
-        }
+        // Calculate filter weights using exact frequency positions (not integer bin snapping)
+        float binWidthHz = (float) SAMPLE_RATE / N_FFT;
         
         // Create triangular filters
         for (int m = 0; m < N_MELS; m++) {
-            for (int k = binPoints[m]; k < binPoints[m + 1]; k++) {
-                if (k >= 0 && k < melFilterbank[m].length) {
-                    melFilterbank[m][k] = (float) (k - binPoints[m]) / (binPoints[m + 1] - binPoints[m]);
+            float lowHz = hzPoints[m];
+            float centerHz = hzPoints[m + 1];
+            float highHz = hzPoints[m + 2];
+            
+            // Convert Hz bounds to bin indices (range to iterate)
+            int startBin = (int) Math.floor(lowHz / binWidthHz);
+            int endBin = (int) Math.ceil(highHz / binWidthHz);
+            
+            // Camp to valid FFT bins
+            startBin = Math.max(0, startBin);
+            endBin = Math.min(N_FFT / 2, endBin);
+            
+            // Slaney normalization factor
+            float width = highHz - lowHz;
+            float enorm = 2.0f / width;
+            
+            for (int k = startBin; k <= endBin; k++) {
+                float freq = k * binWidthHz;
+                float weight = 0f;
+                
+                if (freq >= lowHz && freq <= centerHz) {
+                    weight = (freq - lowHz) / (centerHz - lowHz);
+                } else if (freq > centerHz && freq <= highHz) {
+                    weight = (highHz - freq) / (highHz - centerHz);
                 }
-            }
-            for (int k = binPoints[m + 1]; k < binPoints[m + 2]; k++) {
-                if (k >= 0 && k < melFilterbank[m].length) {
-                    melFilterbank[m][k] = (float) (binPoints[m + 2] - k) / (binPoints[m + 2] - binPoints[m + 1]);
+                
+                // Apply Slaney norm immediately
+                if (weight > 0) {
+                    melFilterbank[m][k] = weight * enorm;
                 }
             }
         }

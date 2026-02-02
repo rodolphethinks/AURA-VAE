@@ -1,0 +1,27 @@
+{
+  "model_file": "vae_model.tflite",
+  "detector_file": "anomaly_detector.tflite",
+  "input_shape": [
+    64,
+    32,
+    1
+  ],
+  "sample_rate": 16000,
+  "n_fft": 1024,
+  "hop_length": 512,
+  "n_mels": 64,
+  "f_min": 50,
+  "f_max": 8000,
+  "segment_duration": 1.0,
+  "n_time_frames": 32,
+  "normalization": {
+    "mean": -42.75925827026367,
+    "std": 17.662689208984375
+  },
+  "threshold": {
+    "threshold": 0.04229747674465179,
+    "mean": 0.02311009354889393,
+    "std": 0.003214194206520915,
+    "k": 3.0
+  }
+}
