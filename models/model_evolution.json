@@ -1,0 +1,50 @@
+{
+  "description": "AURA-VAE Model Evolution Tracker - Records model performance over training iterations",
+  "created": "2026-02-02T12:51:15.439698",
+  "versions": [
+    {
+      "id": "v1_baseline_20260202",
+      "version_number": 1,
+      "timestamp": "2026-02-02T12:51:15.440698",
+      "git": {
+        "commit": "1db71028",
+        "branch": "master"
+      },
+      "training_data": {
+        "audio_files": [
+          "Filante Sound Acquisition.m4a",
+          "Filante Sound Acquisition 2_cleaned.wav",
+          "Filante Sound Acquisition 3_cleaned.wav",
+          "Filante Sound Acquisition 4_cleaned.wav"
+        ],
+        "num_files": 4,
+        "total_segments": 12968,
+        "total_duration_minutes": 108.1,
+        "data_hash": "c8213d7b2035"
+      },
+      "training_metrics": {
+        "final_train_loss": 48.06468200683594,
+        "final_val_loss": 62.71659469604492,
+        "best_val_loss": 62.36293029785156,
+        "epochs_trained": 78
+      },
+      "evaluation_metrics": {
+        "roc_auc": 1.0,
+        "pr_auc": 1.0,
+        "normal_accuracy": 77.4468085106383,
+        "anomaly_detection_rate": 100.0,
+        "normal_mean_score": 0.030356332659721375,
+        "anomaly_mean_score": 5.138331413269043
+      },
+      "threshold": {
+        "threshold": 0.06,
+        "mean": 0.022143881767988205,
+        "std": 0.0024936937261372805,
+        "k": 3.0
+      },
+      "experiment_dir": "C:\\Users\\rodol\\Documents\\Neos\\Aura\\experiments\\20260202-122520_train",
+      "notes": "Baseline model - standardized preprocessing with ref=np.max"
+    }
+  ],
+  "last_updated": "2026-02-02T12:51:15.440698"
+}

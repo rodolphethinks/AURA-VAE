@@ -501,6 +501,9 @@ def main():
         print("\nERROR: No audio files found!")
         return
     
+    # Store basenames for tracking
+    audio_files_basenames = [os.path.basename(f) for f in audio_files]
+    
     # Step 1: Preprocessing
     # Note: We save combined features to PROCESSED_DATA_DIR (cache) AND exp_dir
     features_path_cache = os.path.join(PROCESSED_DATA_DIR, "combined_features.npy")
@@ -567,6 +570,67 @@ def main():
             
             # Step 5: Update Production
             update_production_models(exp_dir)
+        
+        # Step 6: Track Model Evolution
+        print("\n" + "="*60)
+        print("STEP 5: MODEL TRACKING")
+        print("="*60)
+        from model_tracker import ModelTracker
+        tracker = ModelTracker(BASE_DIR)
+        
+        # Load metadata for tracking
+        meta_file = os.path.join(exp_dir, "preprocessing_metadata.json")
+        total_segments = 0
+        total_duration = 0
+        if os.path.exists(meta_file):
+            with open(meta_file, 'r') as f:
+                meta = json.load(f)
+                total_segments = meta.get("num_segments", 0)
+                total_duration = meta.get("total_duration_seconds", 0) / 60
+        
+        # Load evaluation metrics
+        eval_metrics_file = os.path.join(exp_dir, "metrics", "evaluation_metrics.json")
+        eval_metrics = {}
+        if os.path.exists(eval_metrics_file):
+            with open(eval_metrics_file, 'r') as f:
+                eval_data = json.load(f)
+                eval_metrics = {
+                    "roc_auc": eval_data.get("roc", {}).get("auc"),
+                    "pr_auc": eval_data.get("precision_recall", {}).get("pr_auc"),
+                    "normal_accuracy": eval_data.get("detection", {}).get("normal_accuracy"),
+                    "anomaly_detection_rate": eval_data.get("detection", {}).get("anomaly_detection_rate"),
+                    "normal_mean_score": eval_data.get("normal_scores", {}).get("mean"),
+                    "anomaly_mean_score": eval_data.get("anomaly_scores", {}).get("mean"),
+                }
+        
+        # Load threshold config
+        threshold_file = os.path.join(exp_dir, "models", "threshold_config.json")
+        threshold_config = {}
+        if os.path.exists(threshold_file):
+            with open(threshold_file, 'r') as f:
+                threshold_config = json.load(f)
+        
+        # Training metrics from history
+        training_metrics = {
+            "final_train_loss": history['total_loss'][-1] if history else None,
+            "final_val_loss": history['val_total_loss'][-1] if history else None,
+            "best_val_loss": min(history['val_total_loss']) if history else None,
+            "epochs_trained": len(history['val_total_loss']) if history else None
+        }
+        
+        # Record version
+        tracker.record_version(
+            audio_files=audio_files_basenames,
+            total_segments=total_segments,
+            total_duration_minutes=total_duration,
+            training_metrics=training_metrics,
+            evaluation_metrics=eval_metrics,
+            threshold_config=threshold_config,
+            experiment_dir=exp_dir,
+            notes=f"Training run with {len(audio_files_basenames)} audio files"
+        )
+        
+        tracker.print_history()
             
     else:
         print("\n[Skipping training]")
