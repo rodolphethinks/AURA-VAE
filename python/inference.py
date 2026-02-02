@@ -33,8 +33,8 @@ def load_audio(audio_path: str) -> np.ndarray:
 def extract_mel_spectrogram(audio_segment: np.ndarray) -> np.ndarray:
     """Extract mel spectrogram from audio segment.
     
-    NOTE: Uses ref=SPEC_REF (1.0) to match preprocessing.py exactly.
-    This ensures consistent normalization between training and inference.
+    Uses ref=np.max to normalize each spectrogram relative to its maximum value.
+    This is consistent with run_pipeline.py and preprocessing.py.
     """
     mel_spec = librosa.feature.melspectrogram(
         y=audio_segment,
@@ -44,11 +44,11 @@ def extract_mel_spectrogram(audio_segment: np.ndarray) -> np.ndarray:
         n_mels=N_MELS,
         fmin=F_MIN,
         fmax=F_MAX,
-        power=2.0  # Power spectrogram to match preprocessing.py
+        power=2.0  # Power spectrogram
     )
     mel_spec_db = librosa.power_to_db(
         mel_spec,
-        ref=SPEC_REF,
+        ref=np.max,  # Normalize relative to max (consistent with training)
         amin=SPEC_AMIN,
         top_db=SPEC_TOP_DB
     )

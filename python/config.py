@@ -122,9 +122,12 @@ ANOMALY_THRESHOLD_K = 3.0
 # This is better for mixed datasets (Silent Studio + Noisy Car)
 ANOMALY_THRESHOLD_PERCENTILE = 99.99
 
-# MANUAL OVERRIDE (Set to None to use calculated value)
-# Useful if the calculated threshold is still too sensitive for real-world deployment
-# A typical "safe" value for noisy environments is 0.06 - 0.08
+# MANUAL OVERRIDE (Set to None to use calculated threshold from training)
+# The threshold is computed as: percentile or mean + k * std of reconstruction errors
+# Based on empirical testing: 0.06 provides good balance between sensitivity and false positives
+# - Too low (0.033): 90%+ flagged as anomalies (too sensitive)
+# - Good (0.06): ~20% flagged as anomalies on normal driving
+# - Too high (0.1+): May miss real anomalies
 ANOMALY_THRESHOLD_OVERRIDE = 0.06
 
 # =============================================================================

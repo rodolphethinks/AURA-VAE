@@ -132,7 +132,8 @@ def preprocess_combined_audio(audio_files, output_dir):
     """Preprocess and combine multiple audio files."""
     import librosa
     from config import (SAMPLE_RATE, SEGMENT_SAMPLES, HOP_SAMPLES, 
-                        N_FFT, HOP_LENGTH, N_MELS, F_MIN, F_MAX, N_TIME_FRAMES)
+                        N_FFT, HOP_LENGTH, N_MELS, F_MIN, F_MAX, N_TIME_FRAMES,
+                        SPEC_AMIN, SPEC_TOP_DB)
     
     print(f"\nProcessing {len(audio_files)} audio files...")
     
@@ -167,9 +168,11 @@ def preprocess_combined_audio(audio_files, output_dir):
     for i, seg in enumerate(segments):
         mel_spec = librosa.feature.melspectrogram(
             y=seg, sr=SAMPLE_RATE, n_fft=N_FFT, hop_length=HOP_LENGTH,
-            n_mels=N_MELS, fmin=F_MIN, fmax=F_MAX
+            n_mels=N_MELS, fmin=F_MIN, fmax=F_MAX, power=2.0
         )
-        mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
+        mel_spec_db = librosa.power_to_db(
+            mel_spec, ref=np.max, amin=SPEC_AMIN, top_db=SPEC_TOP_DB
+        )
         
         # Ensure correct shape
         if mel_spec_db.shape[1] > N_TIME_FRAMES:

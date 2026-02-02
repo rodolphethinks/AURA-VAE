@@ -18,7 +18,7 @@ N_MELS = 64
 F_MIN = 50
 F_MAX = 8000
 N_TIME_FRAMES = 32
-SPEC_REF = 1.0
+SPEC_AMIN = 1e-10
 SPEC_TOP_DB = 80.0
 
 def run_inference_with_setup(audio_path, model_path, norm_params, htk_mode, norm_mode):
@@ -55,7 +55,7 @@ def run_inference_with_setup(audio_path, model_path, norm_params, htk_mode, norm
             power=2.0
         )
         
-        mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max, top_db=SPEC_TOP_DB)
+        mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max, amin=SPEC_AMIN, top_db=SPEC_TOP_DB)
         
         # Resize
         if mel_spec_db.shape[1] > N_TIME_FRAMES:

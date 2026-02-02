@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-02-02T12:25:37.810571",
+  "audio_files": [
+    "Filante Sound Acquisition.m4a",
+    "Filante Sound Acquisition 2_cleaned.wav",
+    "Filante Sound Acquisition 3_cleaned.wav",
+    "Filante Sound Acquisition 4_cleaned.wav"
+  ],
+  "total_duration_seconds": 6484.653437499999,
+  "num_segments": 12968,
+  "feature_shape": [
+    12968,
+    64,
+    32
+  ]
+}

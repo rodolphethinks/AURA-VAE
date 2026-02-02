@@ -149,9 +149,11 @@ def compute_mel_spectrogram(audio_segment: np.ndarray,
     )
     
     # Convert to log scale (dB)
+    # Use ref=np.max to normalize each spectrogram relative to its maximum
+    # This is consistent with run_pipeline.py training preprocessing
     log_mel_spec = librosa.power_to_db(
         mel_spec,
-        ref=SPEC_REF,
+        ref=np.max,
         amin=SPEC_AMIN,
         top_db=SPEC_TOP_DB
     )
