@@ -243,13 +243,19 @@ def train_vae(output_dir=None):
     # =========================================================================
     print("\n[5/5] Saving results...")
     
-    # Load best weights
+    # Load best weights (saved by ModelCheckpoint callback)
     vae.load_weights(weights_path)
     
-    # Save full model (for TFLite conversion)
+    # Save model weights to the canonical location (MODEL_FILENAME)
+    # Note: We use a single canonical weight file to avoid confusion
     model_path = os.path.join(models_dir, MODEL_FILENAME)
     vae.save_weights(model_path)
     print(f"  Model weights saved to: {model_path}")
+    
+    # Remove temporary callback weights file to avoid confusion
+    if weights_path != model_path and os.path.exists(weights_path):
+        os.remove(weights_path)
+        print(f"  Removed temporary weights: {weights_path}")
     
     # Save training history
     history_dict = {k: [float(v) for v in vals] for k, vals in history.history.items()}

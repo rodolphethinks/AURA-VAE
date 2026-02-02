@@ -70,7 +70,14 @@ def compute_threshold(scores: np.ndarray,
     """
     # Check for manual override
     if ANOMALY_THRESHOLD_OVERRIDE is not None:
-        print(f"Using manual threshold override: {ANOMALY_THRESHOLD_OVERRIDE}")
+        import warnings
+        warnings.warn(
+            f"⚠️  ANOMALY_THRESHOLD_OVERRIDE is set to {ANOMALY_THRESHOLD_OVERRIDE}. "
+            f"This overrides all automatic threshold calculations. "
+            f"Set ANOMALY_THRESHOLD_OVERRIDE = None in config.py to use computed thresholds.",
+            UserWarning
+        )
+        print(f"[WARNING] Using manual threshold override: {ANOMALY_THRESHOLD_OVERRIDE}")
         return ANOMALY_THRESHOLD_OVERRIDE
 
     if method == 'std':
@@ -294,16 +301,22 @@ def evaluate_model(vae=None, norm_params=None, features_path=None, segments_path
     if vae is None:
         vae, normalizer = load_trained_model()
     else:
-        # Reconstruct normalizer
+        # Reconstruct normalizer from provided params or load from disk
         normalizer = FeatureNormalizer()
-        if norm_params:
+        if norm_params and 'mean' in norm_params and 'std' in norm_params:
             normalizer.mean = norm_params['mean']
             normalizer.std = norm_params['std']
             normalizer.fitted = True
         else:
-             # Try loading default params
-             _, normalizer_loaded = load_trained_model() # Inefficient but safe fallback
-             normalizer = normalizer_loaded
+            # Try loading from disk
+            norm_path = os.path.join(models_dir, NORM_PARAMS_FILENAME)
+            if os.path.exists(norm_path):
+                normalizer.load(norm_path)
+            else:
+                print("  WARNING: No normalization params found, using defaults")
+                normalizer.mean = -40.0
+                normalizer.std = 20.0
+                normalizer.fitted = True
     
     # Load data
     dataset = AuraDataset(normalizer=normalizer)

@@ -15,7 +15,9 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from python.config import *
+from python.config import (SAMPLE_RATE, SEGMENT_SAMPLES, HOP_SAMPLES, 
+                           N_FFT, HOP_LENGTH, N_MELS, F_MIN, F_MAX, N_TIME_FRAMES,
+                           SPEC_REF, SPEC_AMIN, SPEC_TOP_DB)
 
 
 def load_audio(audio_path: str) -> np.ndarray:
@@ -29,7 +31,11 @@ def load_audio(audio_path: str) -> np.ndarray:
 
 
 def extract_mel_spectrogram(audio_segment: np.ndarray) -> np.ndarray:
-    """Extract mel spectrogram from audio segment."""
+    """Extract mel spectrogram from audio segment.
+    
+    NOTE: Uses ref=SPEC_REF (1.0) to match preprocessing.py exactly.
+    This ensures consistent normalization between training and inference.
+    """
     mel_spec = librosa.feature.melspectrogram(
         y=audio_segment,
         sr=SAMPLE_RATE,
@@ -37,9 +43,15 @@ def extract_mel_spectrogram(audio_segment: np.ndarray) -> np.ndarray:
         hop_length=HOP_LENGTH,
         n_mels=N_MELS,
         fmin=F_MIN,
-        fmax=F_MAX
+        fmax=F_MAX,
+        power=2.0  # Power spectrogram to match preprocessing.py
     )
-    mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
+    mel_spec_db = librosa.power_to_db(
+        mel_spec,
+        ref=SPEC_REF,
+        amin=SPEC_AMIN,
+        top_db=SPEC_TOP_DB
+    )
     return mel_spec_db
 
 

@@ -37,25 +37,43 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'python'))
 
 
 # =============================================================================
-# AUDIO REGISTRY - Add your cleaned audio files here
+# AUDIO REGISTRY - Loaded from external JSON file for safety
 # =============================================================================
-TRAINING_AUDIO_FILES = [
-    # Original training audio
-    "Filante Sound Acquisition.m4a",
-    # Cleaned audio from second recording (anomalies removed)
-    "Filante Sound Acquisition 2_cleaned.wav",
-    # Cleaned audio from third recording
-    "Filante Sound Acquisition 3_cleaned.wav",
-    "Filante Sound Acquisition 4_cleaned.wav",
-    # Add more cleaned audio files here as you collect them:
-]
+AUDIO_REGISTRY_FILE = os.path.join(os.path.dirname(__file__), "audio_registry.json")
+
+def load_audio_registry():
+    """Load audio file list from external JSON registry."""
+    if os.path.exists(AUDIO_REGISTRY_FILE):
+        with open(AUDIO_REGISTRY_FILE, 'r') as f:
+            registry = json.load(f)
+        return registry.get('training_audio_files', [])
+    else:
+        # Fallback to hardcoded list if registry doesn't exist
+        print(f"[WARNING] Audio registry not found at {AUDIO_REGISTRY_FILE}, using defaults")
+        return [
+            "Filante Sound Acquisition.m4a",
+            "Filante Sound Acquisition 2_cleaned.wav",
+            "Filante Sound Acquisition 3_cleaned.wav",
+            "Filante Sound Acquisition 4_cleaned.wav",
+        ]
+
+def save_audio_registry(audio_files):
+    """Save audio file list to external JSON registry."""
+    registry = {
+        "description": "Registry of audio files used for training. Edit this file to add/remove training audio.",
+        "training_audio_files": audio_files
+    }
+    with open(AUDIO_REGISTRY_FILE, 'w') as f:
+        json.dump(registry, f, indent=2)
+    print(f"  Updated audio registry: {AUDIO_REGISTRY_FILE}")
 
 
 def get_audio_files(base_dir):
     """Get list of existing audio files from registry."""
+    training_audio_files = load_audio_registry()
     existing = []
     missing = []
-    for audio_file in TRAINING_AUDIO_FILES:
+    for audio_file in training_audio_files:
         path = os.path.join(base_dir, audio_file)
         if os.path.exists(path):
             existing.append(path)
@@ -380,56 +398,31 @@ def interactive_anomaly_review(audio_path, regions_sorted):
     print(f"✓ Saved cleaned audio: {output_path}")
     print(f"  Removed {len(y) - len(y_cleaned)} samples ({(len(y) - len(y_cleaned))/sr:.1f}s)")
     
-    # Auto-add to registry
-    add_confirm = input(f"\nAdd '{clean_name}' to training list in run_pipeline.py? [y/N]: ").strip().lower()
+    # Auto-add to registry (using external JSON file)
+    add_confirm = input(f"\nAdd '{clean_name}' to training registry? [y/N]: ").strip().lower()
     if add_confirm == 'y':
         try:
-            with open(__file__, 'r') as f:
-                lines = f.readlines()
+            # Load current registry
+            current_files = load_audio_registry()
             
-            # Find TRAINING_AUDIO_FILES list
-            start_idx = -1
-            end_idx = -1
-            for idx, line in enumerate(lines):
-                if 'TRAINING_AUDIO_FILES = [' in line:
-                    start_idx = idx
-                if start_idx != -1 and ']' in line:
-                    end_idx = idx
-                    break
-            
-            if start_idx != -1 and end_idx != -1:
-                # Check if already exists
-                entry = f'    "{clean_name}",\n'
-                already_exists = False
-                for line in lines[start_idx:end_idx+1]:
-                    if clean_name in line:
-                        already_exists = True
-                        break
+            if clean_name not in current_files:
+                current_files.append(clean_name)
+                save_audio_registry(current_files)
+                print(f"✓ Added '{clean_name}' to audio_registry.json")
                 
-                if not already_exists:
-                    # Insert before the closing bracket
-                    lines.insert(end_idx, entry)
-                    with open(__file__, 'w') as f:
-                        f.writelines(lines)
-                    print(f"✓ Added to TRAINING_AUDIO_FILES.")
-                    
-                    # Auto-retrain
-                    retrain = input("\nStart retraining pipeline now? (Will preprocess all files including new one) [y/N]: ").strip().lower()
-                    if retrain == 'y':
-                        import subprocess
-                        print("\n" + "="*60)
-                        print("TRIGGERING RETRAINING PIPELINE")
-                        print("="*60)
-                        # We run without arguments to force preprocessing of the new file
-                        subprocess.check_call([sys.executable, __file__])
-                        sys.exit(0)
-
-                else:
-                    print("! Already in list.")
+                # Auto-retrain
+                retrain = input("\nStart retraining pipeline now? (Will preprocess all files including new one) [y/N]: ").strip().lower()
+                if retrain == 'y':
+                    import subprocess
+                    print("\n" + "="*60)
+                    print("TRIGGERING RETRAINING PIPELINE")
+                    print("="*60)
+                    subprocess.check_call([sys.executable, __file__])
+                    sys.exit(0)
             else:
-                print("! Could not find TRAINING_AUDIO_FILES list in script.")
+                print(f"! '{clean_name}' already in registry.")
         except Exception as e:
-            print(f"! Error updating script: {e}")
+            print(f"! Error updating registry: {e}")
 
 
 def main():
