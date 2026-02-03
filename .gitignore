@@ -18,9 +18,8 @@ data/synthetic/
 *.wav
 *.mp3
 
-# New Experiment artifacts to ignore likely large or redundant
-experiments/**/combined_features.npy
-experiments/**/combined_segments.npy
+# Experiments folder (contains large training artifacts)
+experiments/
 
 # Model weights (large files)
 models/*.h5

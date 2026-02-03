@@ -3,11 +3,131 @@
   "created": "2026-02-02T12:51:15.439698",
   "versions": [
     {
-      "id": "v1_baseline_20260202",
+      "id": "v1_acquisition1_only_20260202",
       "version_number": 1,
-      "timestamp": "2026-02-02T12:51:15.440698",
+      "timestamp": "2026-02-02T17:19:06.473379",
       "git": {
-        "commit": "1db71028",
+        "commit": "6d543070",
+        "branch": "master"
+      },
+      "training_data": {
+        "audio_files": [
+          "Filante Sound Acquisition.m4a"
+        ],
+        "num_files": 1,
+        "total_segments": 3133,
+        "total_duration_minutes": 26.1,
+        "data_hash": "eedd5038e1b5"
+      },
+      "training_metrics": {
+        "final_train_loss": 51.50453567504883,
+        "final_val_loss": 61.84904861450195,
+        "best_val_loss": 61.67946243286133,
+        "epochs_trained": 81
+      },
+      "evaluation_metrics": {
+        "roc_auc": 0.9994946808510637,
+        "pr_auc": null,
+        "normal_accuracy": 96.38297872340425,
+        "anomaly_detection_rate": 100.0,
+        "normal_mean_score": 0.030064083635807037,
+        "anomaly_mean_score": 1.0868021249771118
+      },
+      "threshold": {
+        "threshold": 0.06,
+        "mean": 0.030064083635807037,
+        "std": 0.013988380320370197
+      },
+      "experiment_dir": "C:\\Users\\rodol\\Documents\\Neos\\Aura\\experiments\\model_evolution\\run_20260202-171512",
+      "notes": "Training with Sound Acquisition 1 only"
+    },
+    {
+      "id": "v2_acquisitions_1_2_20260202",
+      "version_number": 2,
+      "timestamp": "2026-02-02T17:25:03.626213",
+      "git": {
+        "commit": "6d543070",
+        "branch": "master"
+      },
+      "training_data": {
+        "audio_files": [
+          "Filante Sound Acquisition.m4a",
+          "Filante Sound Acquisition 2_cleaned.wav"
+        ],
+        "num_files": 2,
+        "total_segments": 6615,
+        "total_duration_minutes": 55.1,
+        "data_hash": "2852c5efff5a"
+      },
+      "training_metrics": {
+        "final_train_loss": 62.981929779052734,
+        "final_val_loss": 78.31149291992188,
+        "best_val_loss": 78.18452453613281,
+        "epochs_trained": 65
+      },
+      "evaluation_metrics": {
+        "roc_auc": 0.9992292191435769,
+        "pr_auc": null,
+        "normal_accuracy": 92.89672544080605,
+        "anomaly_detection_rate": 100.0,
+        "normal_mean_score": 0.03802243620157242,
+        "anomaly_mean_score": 0.9519289135932922
+      },
+      "threshold": {
+        "threshold": 0.06,
+        "mean": 0.03802243620157242,
+        "std": 0.017359912395477295
+      },
+      "experiment_dir": "C:\\Users\\rodol\\Documents\\Neos\\Aura\\experiments\\model_evolution\\run_20260202-171512",
+      "notes": "Training with Sound Acquisitions 1 + 2"
+    },
+    {
+      "id": "v3_acquisitions_1_2_3_20260202",
+      "version_number": 3,
+      "timestamp": "2026-02-02T17:32:11.563842",
+      "git": {
+        "commit": "6d543070",
+        "branch": "master"
+      },
+      "training_data": {
+        "audio_files": [
+          "Filante Sound Acquisition.m4a",
+          "Filante Sound Acquisition 2_cleaned.wav",
+          "Filante Sound Acquisition 3_cleaned.wav"
+        ],
+        "num_files": 3,
+        "total_segments": 9485,
+        "total_duration_minutes": 79.1,
+        "data_hash": "22b7e26c3cff"
+      },
+      "training_metrics": {
+        "final_train_loss": 65.14517211914062,
+        "final_val_loss": 78.59326934814453,
+        "best_val_loss": 78.24888610839844,
+        "epochs_trained": 56
+      },
+      "evaluation_metrics": {
+        "roc_auc": 0.9990091356289529,
+        "pr_auc": null,
+        "normal_accuracy": 93.78074490513,
+        "anomaly_detection_rate": 100.0,
+        "normal_mean_score": 0.03799204155802727,
+        "anomaly_mean_score": 0.9645594954490662
+      },
+      "threshold": {
+        "threshold": 0.06,
+        "mean": 0.03799204155802727,
+        "std": 0.015326735563576221
+      },
+      "experiment_dir": "C:\\Users\\rodol\\Documents\\Neos\\Aura\\experiments\\model_evolution\\run_20260202-171512",
+      "notes": "Training with Sound Acquisitions 1 + 2 + 3"
+    },
+    {
+      "id": "v4_all_acquisitions_20260202",
+      "version_number": 4,
+      "timestamp": "2026-02-02T17:44:18.298259",
+      "git": {
+        "commit": "6d543070",
         "branch": "master"
       },
       "training_data": {
@@ -18,33 +138,32 @@
           "Filante Sound Acquisition 4_cleaned.wav"
         ],
         "num_files": 4,
-        "total_segments": 12968,
+        "total_segments": 12964,
         "total_duration_minutes": 108.1,
         "data_hash": "c8213d7b2035"
       },
       "training_metrics": {
-        "final_train_loss": 48.06468200683594,
-        "final_val_loss": 62.71659469604492,
-        "best_val_loss": 62.36293029785156,
-        "epochs_trained": 78
+        "final_train_loss": 69.05439758300781,
+        "final_val_loss": 79.11064147949219,
+        "best_val_loss": 79.0670166015625,
+        "epochs_trained": 68
       },
       "evaluation_metrics": {
-        "roc_auc": 1.0,
-        "pr_auc": 1.0,
-        "normal_accuracy": 77.4468085106383,
+        "roc_auc": 0.9961182519280206,
+        "pr_auc": null,
+        "normal_accuracy": 93.05912596401028,
         "anomaly_detection_rate": 100.0,
-        "normal_mean_score": 0.030356332659721375,
-        "anomaly_mean_score": 5.138331413269043
+        "normal_mean_score": 0.03843315318226814,
+        "anomaly_mean_score": 0.8197383284568787
       },
       "threshold": {
         "threshold": 0.06,
-        "mean": 0.022143881767988205,
-        "std": 0.0024936937261372805,
-        "k": 3.0
+        "mean": 0.03843315318226814,
+        "std": 0.014265159144997597
       },
-      "experiment_dir": "C:\\Users\\rodol\\Documents\\Neos\\Aura\\experiments\\20260202-122520_train",
-      "notes": "Baseline model - standardized preprocessing with ref=np.max"
+      "experiment_dir": "C:\\Users\\rodol\\Documents\\Neos\\Aura\\experiments\\model_evolution\\run_20260202-171512",
+      "notes": "Training with all Sound Acquisitions 1 + 2 + 3 + 4"
     }
   ],
-  "last_updated": "2026-02-02T12:51:15.440698"
+  "last_updated": "2026-02-02T17:44:18.298259"
 }

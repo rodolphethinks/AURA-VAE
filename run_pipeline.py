@@ -290,10 +290,13 @@ def evaluate_new_recording(audio_path, output_dir=None):
 def interactive_anomaly_review(audio_path, regions_sorted):
     """
     Interactive review of anomalies with playback and removal.
+    Also saves marked anomalies to the labeled anomaly dataset.
     """
     import soundfile as sf
     import librosa
     import numpy as np
+    from anomaly_dataset import LabeledAnomalyDataset
+    
     try:
         import winsound
     except ImportError:
@@ -316,6 +319,12 @@ def interactive_anomaly_review(audio_path, regions_sorted):
     except Exception as e:
         print(f"Error loading audio: {e}")
         return
+    
+    # Also load at 16kHz for anomaly dataset
+    y_16k, _ = librosa.load(audio_path, sr=16000, mono=True)
+    
+    # Initialize anomaly dataset
+    anomaly_dataset = LabeledAnomalyDataset()
     
     # Store regions to remove (start, end)
     to_remove = []
@@ -355,6 +364,33 @@ def interactive_anomaly_review(audio_path, regions_sorted):
             elif choice == 'y':
                 to_remove.append((start, end))
                 print("  MARKED FOR REMOVAL.")
+                
+                # Add to labeled anomaly dataset
+                start_sample_16k = int(start * 16000)
+                end_sample_16k = int(end * 16000)
+                audio_segment = y_16k[start_sample_16k:end_sample_16k]
+                
+                # Ask for category
+                print("  Category: [1] non_vehicle (default), [2] vehicle_mechanical, [3] vehicle_other, [4] unknown")
+                cat_choice = input("  Category [1-4]: ").strip()
+                categories = {
+                    "1": "non_vehicle",
+                    "2": "vehicle_mechanical", 
+                    "3": "vehicle_other",
+                    "4": "unknown"
+                }
+                category = categories.get(cat_choice, "non_vehicle")
+                
+                anomaly_dataset.add_anomaly(
+                    audio=audio_segment,
+                    source_file=audio_path,
+                    start_time=start,
+                    end_time=end,
+                    anomaly_score=score,
+                    category=category,
+                    notes="Marked during interactive review"
+                )
+                
                 break
             elif choice == 'n':
                 print("  Kept as normal.")

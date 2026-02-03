@@ -1,9 +1,0 @@
-{
-  "description": "Registry of audio files used for training. Edit this file to add/remove training audio.",
-  "training_audio_files": [
-    "Filante Sound Acquisition.m4a",
-    "Filante Sound Acquisition 2_cleaned.wav",
-    "Filante Sound Acquisition 3_cleaned.wav",
-    "Filante Sound Acquisition 4_cleaned.wav"
-  ]
-}
